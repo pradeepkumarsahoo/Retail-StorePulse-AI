@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>StorePulse-AI · Approvals</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="mast">
+    <div class="brand">
+      <div class="mark"></div>
+      <div>
+        <div class="brand-name">StorePulse<em>·</em>AI</div>
+        <div class="brand-sub">Recommendation Approval Queue</div>
+      </div>
+    </div>
+    <div class="mast-right">
+      <span class="tag warn">synthetic data</span>
+      <nav class="nav">
+        <a href="/">Regional</a>
+        <a href="/investigation.html">Investigation</a>
+        <a href="/approvals.html" class="active">Approvals</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="controls">
+    <label>Token
+      <select id="token">
+        <option value="demo-reviewer">demo-reviewer</option>
+        <option value="demo-admin">demo-admin</option>
+        <option value="demo-regional-west">demo-regional-west</option>
+      </select>
+    </label>
+    <label>Status filter
+      <select id="status">
+        <option value="pending_review">pending_review</option>
+        <option value="approved">approved</option>
+        <option value="rejected">rejected</option>
+        <option value="">all</option>
+      </select>
+    </label>
+    <button id="refresh">Refresh</button>
+  </div>
+
+  <section class="evidence">
+    <h2>Queue</h2>
+    <table id="tbl"><thead><tr>
+      <th>Created</th><th>Store</th><th>Title</th><th>Confidence</th>
+      <th>Status</th><th>Actions</th>
+    </tr></thead><tbody></tbody></table>
+  </section>
+
+  <section class="evidence" id="detail" style="display:none">
+    <h2>Detail</h2>
+    <pre id="detail-pre"></pre>
+  </section>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+function headers(){return {authorization:"Bearer "+$("token").value,"content-type":"application/json"}}
+
+async function refresh(){
+  const status=$("status").value;
+  const url="/api/v1/recommendations"+(status?`?status=${status}`:"");
+  const r=await fetch(url,{headers:headers()});
+  if (!r.ok){$("tbl").querySelector("tbody").innerHTML=`<tr><td colspan="6">error ${r.status}</td></tr>`;return}
+  const body=await r.json();
+  const rows=body.map(rec=>`<tr>
+    <td>${new Date(rec.created_at_utc).toISOString().slice(0,16).replace("T"," ")}</td>
+    <td>${rec.store_id}</td>
+    <td>${rec.title}</td>
+    <td>${rec.confidence}</td>
+    <td><span class="status ${rec.status}">${rec.status}</span></td>
+    <td>
+      <button data-rid="${rec.recommendation_id}" data-act="view" class="secondary">View</button>
+      ${rec.status==="pending_review"?`
+        <button data-rid="${rec.recommendation_id}" data-act="approve">Approve</button>
+        <button data-rid="${rec.recommendation_id}" data-act="reject" class="secondary">Reject</button>`:""}
+    </td></tr>`).join("");
+  $("tbl").querySelector("tbody").innerHTML=rows||'<tr><td colspan="6">No recommendations.</td></tr>';
+  document.querySelectorAll("button[data-rid]").forEach(btn=>{btn.onclick=onAction});
+}
+
+async function onAction(e){
+  const rid=e.target.dataset.rid; const act=e.target.dataset.act;
+  if (act==="view"){
+    const r=await fetch(`/api/v1/recommendations/${rid}`,{headers:headers()});
+    const body=await r.json();
+    $("detail").style.display="";
+    $("detail-pre").textContent=JSON.stringify(body,null,2);
+  } else {
+    const r=await fetch(`/api/v1/recommendations/${rid}/review`,{
+      method:"POST",headers:headers(),
+      body:JSON.stringify({decision:act,comment:`demo UI ${act} by ${$("token").value}`})
+    });
+    if (!r.ok){alert("review failed: "+(await r.text()))}
+    else refresh();
+  }
+}
+
+$("refresh").onclick=refresh; $("token").onchange=refresh; $("status").onchange=refresh;
+refresh();
+</script>
+</body>
+</html>

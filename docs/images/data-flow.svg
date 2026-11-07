@@ -1,0 +1,103 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 440" role="img" aria-labelledby="t3 d3">
+<title id="t3">StorePulse-AI data flow</title>
+<desc id="d3">Synthetic generator produces CSVs. Pandera validates on ingest and routes failures to a quarantine table. SQLAlchemy persists to SQLite (Postgres from M7). KPI service, forecaster, and anomaly detector read from the validated store. Every KPI response carries a lineage block.</desc>
+<defs>
+  <marker id="arr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+    <path d="M0 0L10 5L0 10z" fill="#7b86a3"/>
+  </marker>
+  <style>
+    .bg { fill: #ffffff; }
+    .data { fill: #fffbeb; stroke: #f59e0b; }
+    .node { fill: #f8fafc; stroke: #cbd5e1; }
+    .bad  { fill: #fef2f2; stroke: #f43f5e; }
+    .out  { fill: #ecfeff; stroke: #06b6d4; }
+    .title { font: 600 13px "Inter", system-ui, sans-serif; fill: #0b1220; }
+    .label { font: 400 11px "Inter", system-ui, sans-serif; fill: #475569; }
+    .tag { font: 600 9.5px "JetBrains Mono", ui-monospace, monospace; fill: #64748b;
+            letter-spacing: 0.1em; text-transform: uppercase; }
+    .arrow { stroke: #7b86a3; stroke-width: 1.4; fill: none; opacity: 0.75; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #070914; }
+      .data { fill: rgba(245,158,11,0.12); stroke: #f59e0b; }
+      .node { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.16); }
+      .bad { fill: rgba(244,63,94,0.12); stroke: #f43f5e; }
+      .out { fill: rgba(34,211,238,0.12); stroke: #06b6d4; }
+      .title { fill: #e8ecf5; }
+      .label { fill: #b7c0d4; }
+      .tag { fill: #7b86a3; }
+    }
+  </style>
+</defs>
+<rect class="bg" width="960" height="440"/>
+
+<g transform="translate(20,40)">
+  <rect class="data" x="0" y="0" width="190" height="80" rx="10"/>
+  <text class="tag" x="14" y="20">Source</text>
+  <text class="title" x="14" y="42">Synthetic generator</text>
+  <text class="label" x="14" y="60">5 stores × 90 days</text>
+  <text class="label" x="14" y="74">hourly rows · seed-pinned</text>
+</g>
+<path class="arrow" d="M210 80L245 80" marker-end="url(#arr3)"/>
+
+<g transform="translate(250,40)">
+  <rect class="node" x="0" y="0" width="200" height="80" rx="10"/>
+  <text class="tag" x="14" y="20">Validate</text>
+  <text class="title" x="14" y="42">Pandera schemas</text>
+  <text class="label" x="14" y="60">type · range · uniqueness</text>
+  <text class="label" x="14" y="74">cross-field business rules</text>
+</g>
+<path class="arrow" d="M450 80L485 80" marker-end="url(#arr3)"/>
+<path class="arrow" d="M350 120L350 160" marker-end="url(#arr3)"/>
+
+<g transform="translate(250,160)">
+  <rect class="bad" x="0" y="0" width="200" height="56" rx="10"/>
+  <text class="tag" x="14" y="20" fill="#f43f5e">Quarantine</text>
+  <text class="label" x="14" y="40">reason_code + raw payload</text>
+  <text class="label" x="14" y="52">never silently discarded</text>
+</g>
+
+<g transform="translate(490,40)">
+  <rect class="data" x="0" y="0" width="200" height="80" rx="10"/>
+  <text class="tag" x="14" y="20">Persist</text>
+  <text class="title" x="14" y="42">SQLAlchemy · SQLite</text>
+  <text class="label" x="14" y="60">store · sales_txn · labor_hours</text>
+  <text class="label" x="14" y="74">traffic_count · labor_rate · …</text>
+</g>
+<path class="arrow" d="M690 80L725 80" marker-end="url(#arr3)"/>
+
+<g transform="translate(730,10)">
+  <rect class="node" x="0" y="0" width="210" height="150" rx="10"/>
+  <text class="tag" x="14" y="20">Analytics</text>
+  <text class="title" x="14" y="42">KPI service (8 metrics)</text>
+  <text class="label" x="14" y="60">net_sales · txns · atv · upt</text>
+  <text class="label" x="14" y="74">splh · labor_cost_pct · …</text>
+  <text class="title" x="14" y="100">Forecast + anomaly</text>
+  <text class="label" x="14" y="118">seasonal baseline · robust z</text>
+  <text class="label" x="14" y="132">WAPE/MAE on time-split</text>
+</g>
+
+<path class="arrow" d="M590 120L590 180" marker-end="url(#arr3)"/>
+<g transform="translate(490,180)">
+  <rect class="out" x="0" y="0" width="200" height="60" rx="10"/>
+  <text class="tag" x="14" y="20">Consume</text>
+  <text class="title" x="14" y="42">API · agents · UI</text>
+  <text class="label" x="14" y="56">lineage on every response</text>
+</g>
+
+<path class="arrow" d="M835 160L835 190" marker-end="url(#arr3)"/>
+<g transform="translate(730,190)">
+  <rect class="out" x="0" y="0" width="210" height="60" rx="10"/>
+  <text class="title" x="14" y="26">Response contract</text>
+  <text class="label" x="14" y="46">value + unit + lineage + status</text>
+</g>
+
+<text class="label" x="20" y="300" font-weight="600">Lineage block (every KPI response):</text>
+<g transform="translate(20,320)">
+  <rect class="node" x="0" y="0" width="920" height="100" rx="10"/>
+  <text class="label" x="14" y="24">metric_name  ·  metric_version  ·  formula  ·  source_tables  ·  row_counts  ·  assumptions  ·  synthetic_data</text>
+  <text class="label" x="14" y="46" font-family="JetBrains Mono, monospace" font-size="11">{"metric_name":"sales_per_labor_hour", "metric_version":"1.0.0",</text>
+  <text class="label" x="14" y="62" font-family="JetBrains Mono, monospace" font-size="11">"formula":"sum(net_sales_cents)/100.0 / nullif(sum(labor_minutes)/60.0, 0)",</text>
+  <text class="label" x="14" y="78" font-family="JetBrains Mono, monospace" font-size="11">"source_tables":["sales_txn","labor_hours"], "row_counts":{"sales_txn":84,"labor_hours":84},</text>
+  <text class="label" x="14" y="94" font-family="JetBrains Mono, monospace" font-size="11">"assumptions":["Net sales exclude tax; stored in integer cents.", …], "synthetic_data":true}</text>
+</g>
+</svg>

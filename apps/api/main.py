@@ -1,64 +1,75 @@
-"""FastAPI entrypoint for the M1 vertical slice.
+"""FastAPI entrypoint: full v1.0 surface.
 
-Three endpoints:
-  GET /api/v1/health
-  GET /api/v1/stores
-  GET /api/v1/kpi/splh?store_id=&from=&to=
+Routers: health, kpi, forecast, anomaly, agents, recommendations, audit,
+metrics, plus a static UI at /.
 
-Plus a static HTML tile at / that calls the KPI endpoint.
+Cross-cutting:
+- Correlation ID on every response.
+- Structured JSON logs (packages.observability.logging).
+- Prometheus-style counters/histograms (packages.observability.metrics).
 """
 from __future__ import annotations
 
 import logging
+import time
 import uuid
-from datetime import datetime
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from sqlalchemy import text
-from sqlalchemy.engine import Engine
 
-from infrastructure.db.engine import get_engine, init_schema
-from packages.analytics.kpi_service import compute_splh, list_stores
-from packages.domain.entities import KpiWindow
-from packages.shared_contracts.api_schemas import (
-    HealthResponse,
-    KpiResponse,
-    LineageResponse,
-    StoreResponse,
-    WindowResponse,
-)
+from apps.api.routers import agents as agents_router
+from apps.api.routers import anomaly as anomaly_router
+from apps.api.routers import audit as audit_router
+from apps.api.routers import forecast as forecast_router
+from apps.api.routers import kpi as kpi_router
+from apps.api.routers import metrics_router
+from apps.api.routers import recommendations as reco_router
+from packages.observability import metrics
+from packages.observability.logging import configure_logging, set_correlation_id
+from packages.shared_contracts.api_schemas import HealthResponse
 
-API_VERSION = "0.1.0"
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s cid=%(message)s")
+API_VERSION = "1.0.0"
+configure_logging()
 log = logging.getLogger("storepulse.api")
+
 
 app = FastAPI(
     title="StorePulse-AI API",
-    description="M1 vertical slice: Regional Command Center — SPLH KPI service.",
+    description="Governed retail decision intelligence — v1.0.",
     version=API_VERSION,
 )
 
-_engine: Engine | None = None
-
-
-def _get_engine() -> Engine:
-    global _engine
-    if _engine is None:
-        _engine = get_engine()
-        init_schema(_engine)
-    return _engine
-
 
 @app.middleware("http")
-async def correlation_id_middleware(request: Request, call_next):
+async def correlation_and_metrics(request: Request, call_next):
     cid = request.headers.get("x-correlation-id") or uuid.uuid4().hex[:12]
     request.state.cid = cid
-    response = await call_next(request)
+    set_correlation_id(cid)
+    started = time.perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception:
+        duration = int((time.perf_counter() - started) * 1000)
+        metrics.inc("storepulse_http_requests_total", method=request.method,
+                    path=request.url.path, status="500")
+        metrics.observe_ms("storepulse_http_request_ms", duration,
+                           method=request.method, path=request.url.path)
+        log.exception("unhandled_error", extra={"path": request.url.path})
+        raise
+    duration = int((time.perf_counter() - started) * 1000)
     response.headers["x-correlation-id"] = cid
+    metrics.inc("storepulse_http_requests_total", method=request.method,
+                path=request.url.path, status=str(response.status_code))
+    metrics.observe_ms("storepulse_http_request_ms", duration,
+                       method=request.method, path=request.url.path)
+    log.info("http_request", extra={
+        "method": request.method, "path": request.url.path,
+        "status": response.status_code, "duration_ms": duration,
+    })
+    set_correlation_id(None)
     return response
 
 
@@ -74,52 +85,22 @@ async def value_error_handler(request: Request, exc: ValueError):
     )
 
 
-@app.get("/api/v1/health", response_model=HealthResponse)
+@app.get("/api/v1/health", response_model=HealthResponse, tags=["ops"])
 def health() -> HealthResponse:
     return HealthResponse(status="ok", version=API_VERSION)
 
 
-@app.get("/api/v1/stores", response_model=list[StoreResponse])
-def stores(engine: Engine = Depends(_get_engine)) -> list[StoreResponse]:
-    return [StoreResponse(**row) for row in list_stores(engine)]
+# Routers
+app.include_router(kpi_router.router)
+app.include_router(forecast_router.router)
+app.include_router(anomaly_router.router)
+app.include_router(agents_router.router)
+app.include_router(reco_router.router)
+app.include_router(audit_router.router)
+app.include_router(metrics_router.router)
 
 
-@app.get("/api/v1/kpi/splh", response_model=KpiResponse)
-def splh(
-    store_id: str = Query(..., pattern=r"^S\d{3}$"),
-    from_utc: datetime = Query(..., alias="from"),
-    to_utc: datetime = Query(..., alias="to"),
-    engine: Engine = Depends(_get_engine),
-) -> KpiResponse:
-    # Verify the store exists — any unknown id is 404, not a silent zero value.
-    with engine.connect() as conn:
-        exists = conn.execute(
-            text("SELECT 1 FROM store WHERE store_id = :sid"), {"sid": store_id}
-        ).scalar()
-    if not exists:
-        raise HTTPException(status_code=404, detail=f"Unknown store_id: {store_id}")
-
-    window = KpiWindow(from_utc=from_utc, to_utc=to_utc)
-    result = compute_splh(engine, store_id, window)
-
-    return KpiResponse(
-        value=result.value,
-        unit=result.unit,
-        window=WindowResponse(from_utc=window.from_utc, to_utc=window.to_utc),
-        lineage=LineageResponse(
-            metric_name=result.lineage.metric_name,
-            metric_version=result.lineage.metric_version,
-            formula=result.lineage.formula,
-            source_tables=list(result.lineage.source_tables),
-            row_counts=result.lineage.row_counts,
-            assumptions=list(result.lineage.assumptions),
-            synthetic_data=result.lineage.synthetic_data,
-        ),
-        status="ok" if result.value is not None else "insufficient_evidence",
-    )
-
-
-# Static tile — must come last so it does not shadow /api/v1/*.
-_STATIC_DIR = Path(__file__).parent / "static"
-if _STATIC_DIR.exists():
-    app.mount("/", StaticFiles(directory=_STATIC_DIR, html=True), name="static")
+# Static UI last so it does not shadow /api/v1/*.
+_STATIC = Path(__file__).parent / "static"
+if _STATIC.exists():
+    app.mount("/", StaticFiles(directory=_STATIC, html=True), name="static")

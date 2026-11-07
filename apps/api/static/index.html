@@ -2,61 +2,39 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>StorePulse-AI · SPLH Tile</title>
+<title>StorePulse-AI · Regional Command</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<style>
-  :root {
-    --bg: #070914; --ink: #e8ecf5; --muted: #7b86a3; --border: rgba(255,255,255,0.08);
-    --accent: #8b5cf6; --accent-soft: rgba(139,92,246,0.14);
-    --emerald: #10b981; --amber: #f59e0b; --rose: #f43f5e;
-    --card: rgba(255,255,255,0.04);
-  }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; background: var(--bg); color: var(--ink);
-    font-family: Inter, -apple-system, system-ui, sans-serif; min-height: 100vh; }
-  .wrap { max-width: 980px; margin: 0 auto; padding: 48px 20px 120px; }
-  h1 { font-weight: 600; letter-spacing: -0.02em; font-size: 28px; margin: 0 0 6px; }
-  .sub { color: var(--muted); font-size: 13px; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 28px; }
-  .tag { display: inline-block; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
-    color: var(--amber); border: 1px solid var(--border); padding: 4px 10px; border-radius: 999px;
-    background: rgba(245,158,11,0.08); margin-left: 8px; vertical-align: middle; }
-  .controls { display: flex; gap: 10px; flex-wrap: wrap; align-items: end;
-    padding: 18px; background: var(--card); border: 1px solid var(--border); border-radius: 14px;
-    margin-bottom: 20px; }
-  .controls label { display: flex; flex-direction: column; font-size: 11px; color: var(--muted);
-    letter-spacing: 0.08em; text-transform: uppercase; gap: 4px; }
-  .controls select, .controls input {
-    background: #0f1324; color: var(--ink); border: 1px solid var(--border);
-    border-radius: 8px; padding: 8px 10px; font-size: 14px; font-family: inherit;
-  }
-  button {
-    background: var(--accent); color: white; border: 0; border-radius: 8px;
-    padding: 10px 16px; font-weight: 600; font-size: 14px; cursor: pointer;
-  }
-  button:hover { filter: brightness(1.08); }
-  .tile { padding: 28px; background: var(--card); border: 1px solid var(--border);
-    border-radius: 16px; margin-top: 14px; }
-  .kpi-name { color: var(--muted); font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; }
-  .kpi-value { font-weight: 600; font-size: 56px; letter-spacing: -0.02em; margin: 6px 0 2px; }
-  .kpi-value.null { color: var(--muted); font-size: 26px; }
-  .kpi-unit { color: var(--muted); font-size: 14px; }
-  .lineage { margin-top: 24px; padding-top: 20px; border-top: 1px dashed var(--border);
-    font-size: 13px; line-height: 1.7; color: #b7c0d4; }
-  .lineage h3 { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase;
-    color: var(--muted); margin: 0 0 10px; font-weight: 600; }
-  .lineage dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; margin: 0; }
-  .lineage dt { color: var(--muted); font-size: 12px; }
-  .lineage dd { margin: 0; font-family: "JetBrains Mono", ui-monospace, monospace; font-size: 12px; }
-  .lineage ul { margin: 6px 0 0; padding-left: 18px; }
-  .err { color: var(--rose); font-family: monospace; font-size: 13px; }
-</style>
+<link rel="stylesheet" href="/styles.css">
 </head>
 <body>
 <div class="wrap">
-  <h1>StorePulse·AI <span class="tag">synthetic data</span></h1>
-  <div class="sub">Regional Command Center · KPI tile · M1 vertical slice</div>
+  <header class="mast">
+    <div class="brand">
+      <div class="mark"></div>
+      <div>
+        <div class="brand-name">StorePulse<em>·</em>AI</div>
+        <div class="brand-sub">Regional Command Center · v1.0</div>
+      </div>
+    </div>
+    <div class="mast-right">
+      <span class="tag warn">synthetic data</span>
+      <nav class="nav">
+        <a href="/" class="active">Regional</a>
+        <a href="/investigation.html">Investigation</a>
+        <a href="/approvals.html">Approvals</a>
+      </nav>
+    </div>
+  </header>
 
   <div class="controls">
+    <label>Token
+      <select id="token">
+        <option value="demo-admin">demo-admin (platform_admin)</option>
+        <option value="demo-regional-west">demo-regional-west (West only)</option>
+        <option value="demo-store-s001">demo-store-s001 (S001 only)</option>
+        <option value="demo-reviewer">demo-reviewer</option>
+      </select>
+    </label>
     <label>Store
       <select id="store"></select>
     </label>
@@ -66,100 +44,117 @@
     <label>To (UTC)
       <input id="to" type="datetime-local" step="3600">
     </label>
-    <button id="run">Compute SPLH</button>
+    <button id="run">Refresh</button>
+    <button id="investigate" class="secondary">Investigate this store</button>
   </div>
 
-  <div class="tile" id="tile">
-    <div class="kpi-name">Sales per Labor Hour</div>
-    <div class="kpi-value" id="value">—</div>
-    <div class="kpi-unit" id="unit">USD per labor hour</div>
-    <div class="lineage" id="lineage" style="display:none"></div>
+  <div class="tile-grid">
+    <div class="tile" data-k="net_sales_usd">
+      <div class="k-name">Net Sales</div>
+      <div class="k-value">—</div>
+      <div class="k-unit">USD</div>
+    </div>
+    <div class="tile" data-k="transactions">
+      <div class="k-name">Transactions</div>
+      <div class="k-value">—</div>
+      <div class="k-unit">count</div>
+    </div>
+    <div class="tile" data-k="atv_usd">
+      <div class="k-name">ATV</div>
+      <div class="k-value">—</div>
+      <div class="k-unit">USD / transaction</div>
+    </div>
+    <div class="tile" data-k="upt">
+      <div class="k-name">UPT</div>
+      <div class="k-value">—</div>
+      <div class="k-unit">units / transaction</div>
+    </div>
+    <div class="tile" data-k="splh">
+      <div class="k-name">Sales per Labor Hour</div>
+      <div class="k-value">—</div>
+      <div class="k-unit">USD / labor hour</div>
+    </div>
+    <div class="tile" data-k="labor_cost_pct">
+      <div class="k-name">Labor Cost %</div>
+      <div class="k-value">—</div>
+      <div class="k-unit">of net sales</div>
+    </div>
+    <div class="tile" data-k="conversion_rate">
+      <div class="k-name">Conversion</div>
+      <div class="k-value">—</div>
+      <div class="k-unit">transactions / visitors</div>
+    </div>
+    <div class="tile" data-k="visitors">
+      <div class="k-name">Visitors</div>
+      <div class="k-value">—</div>
+      <div class="k-unit">footfall</div>
+    </div>
   </div>
+
+  <section class="lineage-block">
+    <h3>Last request · correlation + lineage</h3>
+    <pre id="lineage">—</pre>
+  </section>
 </div>
 
 <script>
-  const $ = (id) => document.getElementById(id);
-  const api = (path) => fetch(path, { headers: { "accept": "application/json" } });
+const KPIS = ["net_sales", "transactions", "atv", "upt", "splh",
+              "labor_cost_pct", "conversion_rate", "visitors"];
+const UNIT_KEYS = ["net_sales_usd", "transactions", "atv_usd", "upt", "splh",
+                   "labor_cost_pct", "conversion_rate", "visitors"];
+const $ = id => document.getElementById(id);
+function pad(n){return String(n).padStart(2,"0")}
+function toLocal(d){return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`}
+function headers(){return {"authorization": "Bearer " + $("token").value, "accept": "application/json"}}
 
-  function pad(n) { return String(n).padStart(2, "0"); }
-  function toLocalInputValue(d) {
-    return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}T${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}`;
+async function api(path){const r = await fetch(path, {headers: headers()}); return [r, await r.json()]}
+
+async function loadStores(){
+  const [r, body] = await api("/api/v1/stores");
+  const sel = $("store"); sel.innerHTML = "";
+  if (!r.ok) {
+    const opt = document.createElement("option"); opt.textContent = "(not authorized)"; sel.appendChild(opt); return;
   }
-
-  async function loadStores() {
-    const r = await api("/api/v1/stores");
-    const stores = await r.json();
-    const sel = $("store");
-    sel.innerHTML = "";
-    stores.forEach(s => {
-      const opt = document.createElement("option");
-      opt.value = s.store_id;
-      opt.textContent = `${s.store_id} · ${s.name} (${s.region})`;
-      sel.appendChild(opt);
-    });
+  body.forEach(s=>{const o=document.createElement("option");o.value=s.store_id;o.textContent=`${s.store_id} · ${s.name} (${s.region})`;sel.appendChild(o)});
+}
+function setDefault(){
+  const to=new Date(Date.UTC(2026,9,1,0,0));
+  const from=new Date(Date.UTC(2026,8,24,0,0));
+  $("from").value=toLocal(from);$("to").value=toLocal(to);
+}
+function render(k, body){
+  const tile=document.querySelector(`.tile[data-k="${UNIT_KEYS[KPIS.indexOf(k)]}"]`);
+  if (!tile) return;
+  const val=tile.querySelector(".k-value");
+  if (!body.value && body.value !== 0){val.textContent="insufficient"; val.className="k-value null"; return}
+  let display=body.value;
+  if (k==="labor_cost_pct"||k==="conversion_rate") display=(body.value*100).toFixed(2)+"%";
+  else if (k==="net_sales"||k==="atv") display="$"+body.value.toFixed(2);
+  else display=body.value.toLocaleString();
+  val.textContent=display; val.className="k-value";
+}
+async function refresh(){
+  const sid=$("store").value;
+  const fr=$("from").value+":00Z"; const to=$("to").value+":00Z";
+  const lineages=[];
+  for (const k of KPIS){
+    const path=`/api/v1/kpi/${k}?store_id=${encodeURIComponent(sid)}&from=${fr}&to=${to}`;
+    const [r,body]=await api(path);
+    if (r.ok){render(k,body);lineages.push({kpi:k,value:body.value,unit:body.unit,metric_version:body.lineage.metric_version,row_counts:body.lineage.row_counts})}
+    else {const tile=document.querySelector(`.tile[data-k="${UNIT_KEYS[KPIS.indexOf(k)]}"]`); if (tile){tile.querySelector(".k-value").textContent="—";tile.querySelector(".k-value").className="k-value null"}}
   }
-
-  function setDefaultRange() {
-    const to = new Date(Date.UTC(2026, 9, 1, 0, 0));   // 2026-10-01T00:00 UTC
-    const from = new Date(Date.UTC(2026, 8, 24, 0, 0)); // 2026-09-24T00:00 UTC (7 days)
-    $("from").value = toLocalInputValue(from);
-    $("to").value = toLocalInputValue(to);
-  }
-
-  function renderLineage(l, window) {
-    const el = $("lineage");
-    el.style.display = "";
-    el.innerHTML = `
-      <h3>Lineage</h3>
-      <dl>
-        <dt>Metric</dt><dd>${l.metric_name} · v${l.metric_version}</dd>
-        <dt>Formula</dt><dd>${l.formula}</dd>
-        <dt>Window</dt><dd>${window.from_utc} → ${window.to_utc}</dd>
-        <dt>Sources</dt><dd>${l.source_tables.join(", ")}</dd>
-        <dt>Rows read</dt><dd>${Object.entries(l.row_counts).map(([k,v])=>`${k}=${v}`).join(" · ")}</dd>
-        <dt>Synthetic</dt><dd>${l.synthetic_data}</dd>
-      </dl>
-      <h3 style="margin-top:14px">Assumptions</h3>
-      <ul>${l.assumptions.map(a => `<li>${a}</li>`).join("")}</ul>
-    `;
-  }
-
-  async function compute() {
-    const sid = $("store").value;
-    const from = $("from").value + ":00Z";
-    const to = $("to").value + ":00Z";
-    const url = `/api/v1/kpi/splh?store_id=${encodeURIComponent(sid)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`;
-    try {
-      const r = await api(url);
-      const body = await r.json();
-      if (!r.ok) {
-        $("value").textContent = "error";
-        $("value").className = "kpi-value null";
-        $("unit").innerHTML = `<span class="err">${body.message || body.detail || r.statusText}</span>`;
-        $("lineage").style.display = "none";
-        return;
-      }
-      if (body.value === null) {
-        $("value").textContent = "insufficient evidence";
-        $("value").className = "kpi-value null";
-      } else {
-        $("value").textContent = `$${body.value.toFixed(2)}`;
-        $("value").className = "kpi-value";
-      }
-      $("unit").textContent = body.unit;
-      renderLineage(body.lineage, body.window);
-    } catch (e) {
-      $("value").textContent = "error";
-      $("unit").innerHTML = `<span class="err">${e}</span>`;
-    }
-  }
-
-  (async () => {
-    await loadStores();
-    setDefaultRange();
-    $("run").addEventListener("click", compute);
-    compute();
-  })();
+  $("lineage").textContent=JSON.stringify(lineages,null,2);
+}
+async function investigate(){
+  const sid=$("store").value;
+  const fr=$("from").value+":00Z"; const to=$("to").value+":00Z";
+  const url=`/api/v1/agents/investigate-store?store_id=${encodeURIComponent(sid)}&from=${fr}&to=${to}`;
+  const r=await fetch(url,{method:"POST",headers:headers()});
+  const body=await r.json();
+  if (r.ok){window.location.href=`/investigation.html?run_id=${body.run_id}`}
+  else {$("lineage").textContent=JSON.stringify(body,null,2)}
+}
+(async()=>{setDefault(); await loadStores(); $("run").onclick=refresh; $("investigate").onclick=investigate; $("token").onchange=async()=>{await loadStores(); refresh()}; refresh();})();
 </script>
 </body>
 </html>

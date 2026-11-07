@@ -1,82 +1,46 @@
 # StorePulse-AI — Implementation Plan
 
 > Working plan, kept in lockstep with code. Status in `IMPLEMENTATION_STATUS.md`.
-> Decisions and trade-offs in `DECISIONS.md`.
+> Decisions in `DECISIONS.md`.
 
 ## Guiding principles
 
-- Modular monolith, clean architecture, domain-independent core.
-- Deterministic analytics first; AI only where it adds interpretation value.
+- Modular monolith, clean architecture, framework-independent domain layer.
+- Deterministic analytics first; LLMs only summarise verified evidence.
 - Every KPI value carries lineage: source rows, window, metric version.
 - Synthetic data is **always** labeled synthetic.
-- No LLMs, agents, MCP, or human-review workflow until the metric layer is trusted.
+- Agents can only reach the world through the typed tool gateway.
+- Human review is required for any operational recommendation.
 
 ## Milestone roadmap
 
 | # | Milestone | Scope | Status |
 |---|-----------|-------|--------|
-| M0 | Repo discovery & plan | This document + `DECISIONS.md` | ✅ in progress |
-| M1 | **Vertical slice: SPLH end-to-end** | Synthetic data → SQLite (Postgres-compatible via SQLAlchemy) → Pandera validation → KPI service → FastAPI endpoint → HTML tile → tests | 🟡 active |
-| M2 | Core KPI catalog & regional/store APIs | Add sales-vs-target, ATV, UPT, labor cost %, conversion where valid; per-store and per-region endpoints; data-quality run view | ⏳ |
-| M3 | Workforce forecast & anomaly detection | Baseline seasonal + ML forecast with WAPE/MAE; threshold + statistical anomalies with evidence records | ⏳ |
-| M4 | Agentic workflows & MCP labor-rate server | Supervisor + specialist agents, typed tool gateway, read-only MCP, deterministic fake LLM provider for tests, human approval workflow | ⏳ |
-| M5 | Frontend experience | React + Vite app covering all 11 screens, loading/error/stale states, accessibility | ⏳ |
-| M6 | Governance, security, observability | OWASP control mapping, security test suite, OpenTelemetry/Prometheus, operational runbook | ⏳ |
-| M7 | Release hardening | Full test suite green, fresh-clone verification, Docker Compose, honest status report | ⏳ |
+| M0 | Repo discovery & plan | `IMPLEMENTATION_PLAN.md` + `DECISIONS.md` | ✅ |
+| M1 | SPLH end-to-end | Synthetic data → SQLite → Pandera → KPI service → FastAPI → HTML tile → tests | ✅ |
+| M2 | Core KPI catalog & regional/store APIs | ATV, UPT, labor cost %, conversion, visitors, net sales; metric catalog; RBAC scope; data-quality endpoint | ✅ |
+| M3 | Workforce forecast & anomaly detection | Seasonal baseline + WAPE/MAE; robust z-score anomalies; evidence records | ✅ |
+| M4 | Agentic workflows & MCP | Supervisor + 5 specialists; typed tool gateway; MCP labor-rate server; approval workflow; audit trail | ✅ |
+| M5 | React + Vite frontend | All 11 screens, accessibility, responsive | ⏳ |
+| M6 | Governance, security, observability | OWASP control mapping; threat model; OpenTelemetry + Grafana; pip-audit CI | 🟡 (logs + metrics shipped) |
+| M7 | Release hardening | Docker Compose; Postgres; TLS; OIDC; MCP SDK transport | ⏳ |
 
-## M1 — Vertical slice: SPLH end-to-end (this milestone)
+## v1.0 snapshot — what's running now
 
-### Scope
+Everything in M1 through M4 ships together as v1.0. See `IMPLEMENTATION_STATUS.md` for the full checklist; headline items:
 
-| Layer | What ships |
-|---|---|
-| Data | Deterministic generator: 5 stores × 90 days × hourly `sales_txn`, `labor_hours`, `traffic_count` rows. Fixed seed. |
-| Schema | SQLAlchemy ORM models (SQLite today, Postgres-ready) for `store`, `sales_txn`, `labor_hours`, `traffic_count`, `metric_catalog`. |
-| Validation | Pandera dataframe schemas applied on ingest. Invalid rows quarantined with reason code. |
-| KPI service | `kpi.splh(store_id, from, to)` → value + lineage object (sum of net sales, sum of labor hours, row counts, metric version, window UTC). |
-| API | `GET /api/v1/kpi/splh?store_id=&from=&to=` returning `{ value, unit, metric_version, window, lineage }`. `GET /api/v1/stores`. `GET /api/v1/health`. |
-| UI | One static HTML tile served at `/` that fetches SPLH for a chosen store and date range. |
-| Tests | Unit (KPI math edge cases + Pandera rules) + integration (API ↔ DB). Must pass before M2 starts. |
+- 5 specialist agents + 1 supervisor
+- Typed tool gateway with per-agent allowlists
+- In-process MCP-style labor-rate reference server
+- Deterministic LLM provider (production provider pluggable)
+- 8 KPIs with lineage, 1 forecast model, 1 anomaly detector, 1 approval workflow
+- 63 tests green: unit + integration + security
+- Structured JSON logs + Prometheus-text `/metrics`
+- 3 static UI screens: Regional, Investigation, Approvals
 
-### Out of scope for M1 (explicitly deferred)
+## Risk register
 
-- Postgres container (SQLite until M7 Docker Compose). SQLAlchemy keeps the port cheap.
-- React + Vite (Node unavailable here). Static HTML tile until M5.
-- Auth / RBAC (M2).
-- Any LLM or agent code (M4).
-- All other KPIs beyond SPLH (M2).
-- Anomaly, forecast, briefing (M3+).
-
-### Acceptance criteria (M1)
-
-1. `python -m scripts.generate_data --seed 42` produces identical rows across runs.
-2. `python -m scripts.load_db` ingests via Pandera; invalid rows land in `quarantine` with a reason.
-3. `pytest tests/` passes — at minimum: SPLH math (normal, zero-hours, empty window), Pandera rules, `/api/v1/kpi/splh` happy path and 404.
-4. `uvicorn apps.api.main:app` serves the tile at `http://localhost:8000/`; tile renders the SPLH value with its lineage block.
-5. Response payload carries `metric_version` and a `window_utc` field. No value is returned without lineage.
-
-## Repo layout (M1 subset)
-
-```
-Retail-StorePulse-AI/
-├── apps/api/                 # FastAPI app + static tile
-├── packages/
-│   ├── domain/               # entities, value objects (pure Python)
-│   ├── analytics/            # KPI service (SPLH here)
-│   ├── shared_contracts/     # Pydantic response schemas
-│   └── validation/           # Pandera schemas
-├── infrastructure/
-│   └── db/                   # SQLAlchemy models, engine, ingestion
-├── data/synthetic/           # generator output (gitignored)
-├── scripts/                  # generate_data.py, load_db.py
-├── tests/{unit,integration}/
-└── docs/
-```
-
-Later milestones add `services/labor_rate_mcp/`, `packages/{forecasting, anomaly_detection, ai_orchestration, tool_gateway}`, `apps/web/`, `infra/{docker,prometheus,grafana}/`.
-
-## Risk notes
-
-- **SQLite vs Postgres parity.** Mitigated by using SQLAlchemy Core/ORM and ANSI SQL. No SQLite-specific features in queries.
-- **Pandera on hourly rows is slow if applied row-by-row.** Apply once per batch at ingest; not on every API call.
-- **Deterministic data drift.** Seed + fixed generator version pinned in `metric_catalog.synthetic_data_version`.
+- **SQLite ↔ Postgres parity.** Mitigated by SQLAlchemy ORM + ANSI-SQL discipline. (ADR-0001)
+- **Deterministic LLM is not as expressive as a real one.** By design for v1.0. Swap is a one-line DI change. (ADR-0007)
+- **MCP SDK transport not yet integrated.** v1.0 ships an MCP-shaped in-process adapter; agents call it through the same tool gateway, so the transport change is below the gateway. (ADR-0008)
+- **Synthetic labor model is intentionally generous** (SPLH ~ $13/hr on seed 42). The pipeline is correct; demand-aligned labor baselines land in a later milestone.

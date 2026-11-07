@@ -1,5 +1,7 @@
 """Load synthetic CSVs into the database via Pandera-validated ingest.
 
+Also seeds metric_catalog (all v1 metrics) and labor_rate (from MCP server).
+
 Usage:
     python -m scripts.load_db --in data/synthetic
 """
@@ -13,46 +15,39 @@ from sqlalchemy import text
 
 from infrastructure.db.engine import get_engine, init_schema
 from infrastructure.db.ingest import validate_and_load
-from packages.analytics.kpi_service import (
-    SPLH_FORMULA,
-    SPLH_METRIC_NAME,
-    SPLH_METRIC_VERSION,
-)
+from packages.analytics.kpi_service import METRICS
+from services.labor_rate_mcp.server import seed_rates
 
 
 DATASETS = ["store", "sales_txn", "labor_hours", "traffic_count"]
 
 
-def _seed_metric_catalog(engine) -> None:
+def _seed_metric_catalog(engine) -> int:
     with engine.begin() as conn:
-        conn.execute(
-            text(
-                "DELETE FROM metric_catalog WHERE metric_name = :n AND metric_version = :v"
-            ),
-            {"n": SPLH_METRIC_NAME, "v": SPLH_METRIC_VERSION},
-        )
+        conn.execute(text("DELETE FROM metric_catalog"))
         conn.execute(
             text(
                 "INSERT INTO metric_catalog "
                 "(metric_name, metric_version, unit, formula, source_tables, owner, description) "
                 "VALUES (:n, :v, :u, :f, :st, :o, :d)"
             ),
-            {
-                "n": SPLH_METRIC_NAME,
-                "v": SPLH_METRIC_VERSION,
-                "u": "USD per labor hour",
-                "f": SPLH_FORMULA,
-                "st": "sales_txn,labor_hours",
-                "o": "analytics-platform",
-                "d": "Net sales divided by labor hours over the requested window for a single store.",
-            },
+            [
+                {
+                    "n": name, "v": m["version"], "u": m["unit"], "f": m["formula"],
+                    "st": ",".join(m["source_tables"]), "o": m["owner"], "d": m["description"],
+                } for name, m in METRICS.items()
+            ],
         )
+    return len(METRICS)
 
 
 def _reset_tables(engine) -> None:
-    """Idempotent reload — delete existing rows in dependency order."""
     with engine.begin() as conn:
-        for table in ["quarantine", "sales_txn", "labor_hours", "traffic_count", "store"]:
+        # Child tables first.
+        for table in ["approval_event", "recommendation", "tool_call", "ai_run",
+                      "anomaly", "forecast", "forecast_run", "audit_event",
+                      "quarantine", "sales_txn", "labor_hours", "traffic_count",
+                      "labor_rate", "metric_catalog", "store"]:
             conn.execute(text(f"DELETE FROM {table}"))
 
 
@@ -79,8 +74,10 @@ def main() -> None:
             f"quarantined={result['quarantined']:>5}  reason={result['reason']}"
         )
 
-    _seed_metric_catalog(engine)
-    print("metric_catalog seeded for sales_per_labor_hour v1.0.0")
+    seeded = _seed_metric_catalog(engine)
+    print(f"metric_catalog seeded with {seeded} metrics")
+    n_rates = seed_rates(engine)
+    print(f"labor_rate seeded with {n_rates} synthetic reference rates")
 
 
 if __name__ == "__main__":

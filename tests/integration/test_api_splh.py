@@ -15,6 +15,11 @@ def test_stores_returns_seeded_store(api_client):
     assert any(s["store_id"] == "S001" for s in body)
 
 
+def test_stores_requires_auth(api_client):
+    r = api_client.get("/api/v1/stores", headers={"Authorization": ""})
+    assert r.status_code == 401
+
+
 def test_splh_happy_path(api_client, seed_window):
     start, end = seed_window
     r = api_client.get(
@@ -27,13 +32,11 @@ def test_splh_happy_path(api_client, seed_window):
     assert body["unit"] == "USD per labor hour"
     assert body["value"] is not None
     assert abs(body["value"] - 155.5556) < 1e-3
-    # Lineage is required
     lin = body["lineage"]
     assert lin["metric_name"] == "sales_per_labor_hour"
     assert lin["metric_version"] == "1.0.0"
     assert lin["synthetic_data"] is True
     assert "sales_txn" in lin["source_tables"] and "labor_hours" in lin["source_tables"]
-    # Correlation id echoed
     assert "x-correlation-id" in r.headers
 
 

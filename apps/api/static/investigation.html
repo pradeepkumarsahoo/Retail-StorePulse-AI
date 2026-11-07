@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>StorePulse-AI · Investigation</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="mast">
+    <div class="brand">
+      <div class="mark"></div>
+      <div>
+        <div class="brand-name">StorePulse<em>·</em>AI</div>
+        <div class="brand-sub">Agent Investigation</div>
+      </div>
+    </div>
+    <div class="mast-right">
+      <span class="tag warn">synthetic data</span>
+      <nav class="nav">
+        <a href="/">Regional</a>
+        <a href="/investigation.html" class="active">Investigation</a>
+        <a href="/approvals.html">Approvals</a>
+      </nav>
+    </div>
+  </header>
+
+  <section class="evidence">
+    <h2>Agent run <span id="run_id" class="chip"></span></h2>
+    <div><span class="chip" id="status_chip">—</span><span class="chip" id="intent_chip">—</span><span class="chip" id="store_chip">—</span></div>
+    <div style="margin-top:12px; color: var(--muted); font-size: 13px;">
+      Each specialist receives only its allowlisted tools. Every tool call is audited (see /api/v1/audit).
+      The Advisor's recommendation enters the approval queue at pending_review.
+    </div>
+  </section>
+
+  <section class="evidence">
+    <h2>Store Performance Analyst</h2>
+    <pre id="sp">—</pre>
+  </section>
+  <section class="evidence">
+    <h2>Workforce Intelligence Analyst</h2>
+    <pre id="wf">—</pre>
+  </section>
+  <section class="evidence">
+    <h2>Operations Advisor <span class="chip warn">human review required</span></h2>
+    <pre id="adv">—</pre>
+    <div style="margin-top:12px">
+      <a href="/approvals.html">Review queue →</a>
+    </div>
+  </section>
+</div>
+
+<script>
+const q = new URLSearchParams(window.location.search);
+const runId = q.get("run_id");
+document.getElementById("run_id").textContent = runId || "(none)";
+
+async function load(){
+  // There is no GET for ai_run in v1; the UI consumes investigation via the POST response.
+  // Re-trigger if run_id is a store/time coded thing — else prompt the user to run from Regional.
+  if (!runId){
+    document.getElementById("sp").textContent = "Start an investigation from the Regional screen (Investigate this store).";
+    return;
+  }
+  // We re-fetch the audit trail for this run for transparency.
+  const token = localStorage.getItem("sp_token") || "demo-admin";
+  const r = await fetch(`/api/v1/audit?target_type=ai_run&limit=20`, {headers:{authorization:"Bearer "+token}});
+  if (!r.ok){document.getElementById("sp").textContent=`audit error ${r.status}`;return}
+  const body = await r.json();
+  const row = body.find(e=>e.target_id===runId);
+  if (!row){document.getElementById("sp").textContent="Audit row not found for this run.";return}
+  document.getElementById("status_chip").textContent = row.payload?.status || "—";
+  document.getElementById("store_chip").textContent = row.payload?.store_id || "—";
+  document.getElementById("intent_chip").textContent = row.action || "—";
+  document.getElementById("sp").textContent = JSON.stringify(row, null, 2);
+}
+load();
+</script>
+</body>
+</html>

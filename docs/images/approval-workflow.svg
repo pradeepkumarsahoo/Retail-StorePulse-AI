@@ -1,0 +1,84 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 300" role="img" aria-labelledby="t4 d4">
+<title id="t4">Human-in-the-loop approval workflow</title>
+<desc id="d4">A recommendation flows from draft to pending_review, where only approver roles can approve or reject. Rejected is terminal. Approved moves to in_progress, then completed or expired. Every transition writes an approval_event and an audit_event.</desc>
+<defs>
+  <marker id="arr4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+    <path d="M0 0L10 5L0 10z" fill="#7b86a3"/>
+  </marker>
+  <style>
+    .bg { fill: #ffffff; }
+    .draft { fill: #f8fafc; stroke: #cbd5e1; }
+    .pend  { fill: #fffbeb; stroke: #f59e0b; }
+    .ok    { fill: #ecfdf5; stroke: #10b981; }
+    .no    { fill: #fef2f2; stroke: #f43f5e; }
+    .run   { fill: #f5f3ff; stroke: #8b5cf6; }
+    .title { font: 600 13px "Inter", system-ui, sans-serif; fill: #0b1220; }
+    .label { font: 400 11px "Inter", system-ui, sans-serif; fill: #475569; }
+    .tag   { font: 600 9.5px "JetBrains Mono", ui-monospace, monospace; fill: #64748b;
+             letter-spacing: 0.1em; text-transform: uppercase; }
+    .arrow { stroke: #7b86a3; stroke-width: 1.4; fill: none; opacity: 0.8; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #070914; }
+      .draft { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.16); }
+      .pend  { fill: rgba(245,158,11,0.12); stroke: #f59e0b; }
+      .ok    { fill: rgba(16,185,129,0.12); stroke: #10b981; }
+      .no    { fill: rgba(244,63,94,0.12); stroke: #f43f5e; }
+      .run   { fill: rgba(139,92,246,0.14); stroke: #8b5cf6; }
+      .title { fill: #e8ecf5; }
+      .label { fill: #b7c0d4; }
+      .tag   { fill: #7b86a3; }
+    }
+  </style>
+</defs>
+<rect class="bg" width="960" height="300"/>
+
+<g transform="translate(20,80)">
+  <rect class="draft" x="0" y="0" width="150" height="72" rx="10"/>
+  <text class="tag" x="14" y="20">Draft</text>
+  <text class="title" x="14" y="42">draft</text>
+  <text class="label" x="14" y="60">agent creates</text>
+</g>
+<path class="arrow" d="M170 116L205 116" marker-end="url(#arr4)"/>
+
+<g transform="translate(210,80)">
+  <rect class="pend" x="0" y="0" width="170" height="72" rx="10"/>
+  <text class="tag" x="14" y="20" fill="#f59e0b">Needs review</text>
+  <text class="title" x="14" y="42">pending_review</text>
+  <text class="label" x="14" y="60">queue for reviewer</text>
+</g>
+<path class="arrow" d="M380 100L425 60" marker-end="url(#arr4)"/>
+<path class="arrow" d="M380 132L425 172" marker-end="url(#arr4)"/>
+
+<g transform="translate(430,20)">
+  <rect class="ok" x="0" y="0" width="160" height="60" rx="10"/>
+  <text class="tag" x="14" y="20" fill="#10b981">Approver only</text>
+  <text class="title" x="14" y="42">approved</text>
+</g>
+<g transform="translate(430,150)">
+  <rect class="no" x="0" y="0" width="160" height="60" rx="10"/>
+  <text class="tag" x="14" y="20" fill="#f43f5e">Approver only</text>
+  <text class="title" x="14" y="42">rejected (terminal)</text>
+</g>
+<path class="arrow" d="M590 50L625 50" marker-end="url(#arr4)"/>
+
+<g transform="translate(630,20)">
+  <rect class="run" x="0" y="0" width="150" height="60" rx="10"/>
+  <text class="tag" x="14" y="20" fill="#8b5cf6">Execution</text>
+  <text class="title" x="14" y="42">in_progress</text>
+</g>
+<path class="arrow" d="M780 50L815 50" marker-end="url(#arr4)"/>
+
+<g transform="translate(820,20)">
+  <rect class="ok" x="0" y="0" width="120" height="60" rx="10"/>
+  <text class="title" x="14" y="24">completed</text>
+  <text class="label" x="14" y="42">or expired</text>
+</g>
+
+<g transform="translate(20,210)">
+  <rect class="draft" x="0" y="0" width="920" height="60" rx="10"/>
+  <text class="tag" x="14" y="20">Every transition</text>
+  <text class="label" x="14" y="40">Writes an approval_event (from/to/actor/comment) AND an audit_event (append-only), stamped with correlation_id.</text>
+</g>
+
+<text class="label" x="20" y="60">Roles: platform_admin, regional_manager, ops_reviewer can approve/reject.  Store managers cannot.</text>
+</svg>
