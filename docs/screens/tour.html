@@ -1,0 +1,716 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>StorePulse-AI Tour</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    --ink: #ece7d8;
+    --ink-soft: #b0a994;
+    --bg: #070b14;
+    --bg-raised: #10182a;
+    --bg-high: #18233d;
+    --accent: #7fb1e6;
+    --teal: #5ccfc9;
+    --amber: #e3b566;
+    --critical: #e8886f;
+    --rule: #26304a;
+    --rule-soft: #1a2338;
+    --muted: #8a8475;
+    --f-display: "Fraunces", "Iowan Old Style", Georgia, serif;
+    --f-body: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    --f-mono: "IBM Plex Mono", "SF Mono", Menlo, monospace;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    background: radial-gradient(ellipse at top, #0d1527 0%, var(--bg) 60%);
+    color: var(--ink);
+    font-family: var(--f-body);
+    min-height: 100%;
+  }
+  body {
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+    font-feature-settings: "ss01" on;
+  }
+  ::selection { background: var(--accent); color: var(--bg); }
+
+  .player {
+    max-width: 1280px;
+    margin: 0 auto;
+    padding-block: 24px 48px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  /* Icon helper */
+  .ico {
+    width: 1em; height: 1em;
+    fill: none; stroke: currentColor;
+    stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;
+    vertical-align: -0.15em;
+    flex-shrink: 0;
+  }
+
+  /* Chrome */
+  .chrome {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    padding: 12px 18px;
+    background: var(--bg-raised);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    gap: 16px;
+  }
+  @media (max-width: 760px) {
+    .chrome { grid-template-columns: 1fr; text-align: center; gap: 10px; }
+  }
+  .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--f-display);
+    font-weight: 500;
+    font-size: 15px;
+    letter-spacing: -0.005em;
+  }
+  .brand em { color: var(--accent); font-style: italic; font-weight: 400; }
+  .brand-mark { width: 22px; height: 22px; flex-shrink: 0; }
+  .brand-sub {
+    font-family: var(--f-mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-left: 10px;
+    padding-left: 10px;
+    border-left: 1px solid var(--rule);
+  }
+  @media (max-width: 760px) {
+    .brand-sub { border-left: 0; margin-left: 0; padding-left: 0; }
+  }
+  .chapter {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    text-align: center;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .chapter strong { color: var(--ink); font-weight: 500; }
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+  .ctrl {
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--ink);
+    padding: 7px 12px;
+    border-radius: 999px;
+    font-family: var(--f-mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.15s;
+  }
+  .ctrl:hover { border-color: var(--accent); color: var(--accent); }
+  .ctrl.primary {
+    background: var(--teal);
+    border-color: var(--teal);
+    color: var(--bg);
+    font-weight: 500;
+  }
+  .ctrl.primary:hover { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+  .ctrl .ico { font-size: 13px; }
+  .time {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    margin-left: 4px;
+    white-space: nowrap;
+  }
+
+  /* Stage */
+  .stage {
+    position: relative;
+    background: #f6f2e8;
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    overflow: hidden;
+    aspect-ratio: 16/9;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.35), 0 0 0 1px var(--rule-soft) inset;
+  }
+  .stage iframe {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+    transition: opacity 500ms ease, transform 12s linear;
+    transform: scale(1);
+  }
+  .stage.kenburns iframe { transform: scale(1.03); }
+  .stage.fading iframe { opacity: 0; transition: opacity 400ms ease; }
+  .stage.paused::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: rgba(7, 11, 20, 0.55);
+    display: block;
+    pointer-events: none;
+  }
+  .stage .pause-mark {
+    position: absolute;
+    inset: 0;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+  .stage.paused .pause-mark { display: flex; }
+  .pause-mark-inner {
+    width: 84px; height: 84px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.12);
+    backdrop-filter: blur(8px);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 40px;
+    border: 1px solid rgba(255,255,255,0.2);
+  }
+
+  /* Caption */
+  .caption {
+    padding: 22px 28px;
+    background: var(--bg-raised);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    min-height: 140px;
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+  .caption .lead { flex: 1; min-width: 260px; }
+  .caption .k {
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--teal);
+    margin-bottom: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .caption .k .ico { font-size: 13px; }
+  .caption h2 {
+    font-family: var(--f-display);
+    font-weight: 400;
+    font-size: clamp(22px, 2.6vw, 30px);
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    margin: 0 0 10px;
+    text-wrap: balance;
+  }
+  .caption h2 em { color: var(--accent); font-style: italic; }
+  .caption p {
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: 14.5px;
+    line-height: 1.55;
+    max-width: 68ch;
+  }
+  .caption .solves {
+    width: 240px;
+    padding-left: 24px;
+    border-left: 1px solid var(--rule);
+    align-self: stretch;
+  }
+  .caption .solves-k {
+    font-family: var(--f-mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--amber);
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .caption .solves-txt {
+    font-family: var(--f-body);
+    font-size: 13.5px;
+    color: var(--ink);
+    line-height: 1.4;
+  }
+  @media (max-width: 820px) {
+    .caption .solves { width: 100%; padding-left: 0; padding-top: 14px; border-left: 0; border-top: 1px solid var(--rule); }
+  }
+
+  .anim {
+    opacity: 0;
+    transform: translateY(8px);
+    animation: fadeIn 600ms cubic-bezier(.2,.8,.3,1) 150ms forwards;
+  }
+  .anim.d2 { animation-delay: 250ms; }
+  .anim.d3 { animation-delay: 350ms; }
+  @keyframes fadeIn {
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Progress */
+  .progress {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 16px;
+    background: var(--bg-raised);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+  }
+  .progress .dots {
+    display: flex;
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
+  }
+  .progress .dot {
+    flex: 1;
+    min-width: 30px;
+    height: 5px;
+    background: var(--rule);
+    border-radius: 2px;
+    cursor: pointer;
+    border: 0;
+    padding: 0;
+    position: relative;
+    overflow: hidden;
+    transition: height 150ms;
+  }
+  .progress .dot:hover { height: 7px; }
+  .progress .dot.done { background: var(--teal); opacity: 0.6; }
+  .progress .dot.active { background: var(--rule); }
+  .progress .dot.active::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: var(--teal);
+    width: var(--w, 0%);
+    transition: width 50ms linear;
+  }
+
+  /* Intro & outro overlay scenes (slide 0 and slide N+1) */
+  .title-card {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 40px 32px;
+    background: radial-gradient(ellipse at center, #10182a 0%, var(--bg) 70%);
+    color: var(--ink);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 500ms;
+    z-index: 2;
+  }
+  .title-card.show { opacity: 1; }
+  .title-card .kicker {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    color: var(--teal);
+    margin-bottom: 20px;
+  }
+  .title-card h1 {
+    font-family: var(--f-display);
+    font-weight: 400;
+    font-size: clamp(32px, 5vw, 56px);
+    line-height: 1.05;
+    letter-spacing: -0.025em;
+    margin: 0 0 18px;
+    text-wrap: balance;
+    max-width: 18ch;
+  }
+  .title-card h1 em { color: var(--accent); font-style: italic; }
+  .title-card p {
+    font-family: var(--f-body);
+    color: var(--ink-soft);
+    font-size: 16px;
+    max-width: 52ch;
+    margin: 0;
+  }
+  .title-card .play-prompt {
+    margin-top: 32px;
+    font-family: var(--f-mono);
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  .foot {
+    display: flex;
+    justify-content: space-between;
+    font-family: var(--f-mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    padding: 0 4px;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+  .foot a { color: var(--accent); text-decoration: none; }
+  .foot a:hover { text-decoration: underline; }
+</style>
+</head>
+<body>
+
+<svg hidden xmlns="http://www.w3.org/2000/svg"><defs>
+<symbol id="i-play" viewBox="0 0 24 24"><polygon points="6 4 20 12 6 20 6 4" fill="currentColor" stroke="none"/></symbol>
+<symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="4" width="4" height="16" fill="currentColor" stroke="none"/><rect x="14" y="4" width="4" height="16" fill="currentColor" stroke="none"/></symbol>
+<symbol id="i-prev" viewBox="0 0 24 24"><polygon points="19 20 9 12 19 4" fill="currentColor" stroke="none"/><rect x="5" y="4" width="2" height="16" fill="currentColor" stroke="none"/></symbol>
+<symbol id="i-next" viewBox="0 0 24 24"><polygon points="5 4 15 12 5 20" fill="currentColor" stroke="none"/><rect x="17" y="4" width="2" height="16" fill="currentColor" stroke="none"/></symbol>
+<symbol id="i-chapter" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+<symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.74V17h8v-2.26A7 7 0 0 0 12 2z"/></symbol>
+<symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"/><path d="M19 14l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/></symbol>
+<symbol id="i-sound-off" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></symbol>
+<symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+</defs></svg>
+
+<div class="player">
+  <header class="chrome">
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 28 28" aria-hidden="true">
+        <rect x="2" y="12" width="4" height="12" fill="var(--teal)"/>
+        <rect x="8" y="7" width="4" height="17" fill="var(--accent)"/>
+        <rect x="14" y="10" width="4" height="14" fill="var(--teal)"/>
+        <rect x="20" y="4" width="4" height="20" fill="var(--accent)"/>
+      </svg>
+      StorePulse<em>·</em>AI
+      <span class="brand-sub">Stakeholder tour</span>
+    </div>
+    <div class="chapter">Scene <strong id="ch-no">1</strong> of 5 · <span id="ch-title">Fragmented visibility → one trusted view</span></div>
+    <div class="controls">
+      <button class="ctrl" id="btn-prev" aria-label="Previous"><svg class="ico"><use href="#i-prev"/></svg></button>
+      <button class="ctrl primary" id="btn-play" aria-label="Play or pause"><svg class="ico" id="btn-play-ico"><use href="#i-pause"/></svg><span id="btn-play-label">Pause</span></button>
+      <button class="ctrl" id="btn-next" aria-label="Next"><svg class="ico"><use href="#i-next"/></svg></button>
+      <span class="time" id="time">0:00 / 0:00</span>
+    </div>
+  </header>
+
+  <div class="stage" id="stage">
+    <iframe id="stageFrame" src="" title="Current scene"></iframe>
+    <div class="pause-mark"><div class="pause-mark-inner"><svg class="ico"><use href="#i-play"/></svg></div></div>
+    <div class="title-card" id="titleCard">
+      <div class="kicker">StorePulse · AI</div>
+      <h1>From <em>what happened</em> to <em>what we should do</em>.</h1>
+      <p>A 55-second walkthrough of how a regional manager turns a missed-target Tuesday into a reviewed, evidence-backed recommendation — no navigation required.</p>
+      <div class="play-prompt">Starting tour…</div>
+    </div>
+  </div>
+
+  <div class="caption">
+    <div class="lead">
+      <div class="k anim" id="cap-k"><svg class="ico"><use href="#i-chapter"/></svg><span></span></div>
+      <h2 class="anim d2" id="cap-h"></h2>
+      <p class="anim d3" id="cap-p"></p>
+    </div>
+    <div class="solves">
+      <div class="solves-k"><svg class="ico"><use href="#i-bulb"/></svg>Problem it solves</div>
+      <div class="solves-txt anim d3" id="cap-s"></div>
+    </div>
+  </div>
+
+  <div class="progress">
+    <div class="dots" id="dots"></div>
+  </div>
+
+  <div class="foot">
+    <div>Autoplays · 55s · click a chapter dot to jump · spacebar to pause</div>
+    <div><a href="index.html"><svg class="ico"><use href="#i-link"/></svg>Open the clickable demo instead</a></div>
+  </div>
+</div>
+
+<script>
+const scenes = [
+  {
+    src: 'regional.html',
+    chapterTitle: 'Fragmented visibility → one trusted view',
+    k: 'Scene 01 · Regional command center',
+    h: 'Five stores, <em>one picture</em>.',
+    p: 'Chicago Metro, yesterday. Unified sales, labor, and conversion KPIs across all stores — governed metric definitions, two stores flagged for attention, one carrying a critical anomaly.',
+    s: 'Sales from POS, labor from WFM, footfall from traffic counters — all living in different tabs, reconciled by hand.',
+    duration: 10000
+  },
+  {
+    src: 'store.html',
+    chapterTitle: 'Reactive management → situational awareness',
+    k: 'Scene 02 · Store performance',
+    h: 'Why Store <em>#042</em> missed target.',
+    p: 'Electronics down 22%. Footfall unchanged — so this is a conversion issue, not a demand issue. Two anomalies already open and linked to supporting evidence.',
+    s: 'Dashboards report what happened. Why it happened and what to do next falls to manual investigation.',
+    duration: 10000
+  },
+  {
+    src: 'anomaly.html',
+    chapterTitle: 'Opaque root-cause → ranked, evidenced factors',
+    k: 'Scene 03 · The agentic investigation',
+    h: 'Agents retrieve. <em>Humans decide.</em>',
+    p: 'Specialist agents pull validated metrics through a typed tool gateway. Ranked factors with citations, alternatives considered, and a reviewable recommendation — no autonomous action.',
+    s: 'Conversion drops and availability gaps surface too late, after the decision window has closed.',
+    duration: 11000
+  },
+  {
+    src: 'workforce.html',
+    chapterTitle: 'Workforce mismatch → hourly demand intelligence',
+    k: 'Scene 04 · Workforce intelligence',
+    h: 'The recurring <em>Tuesday</em> gap.',
+    p: 'Forecast demand vs scheduled vs actual coverage. The 10am–2pm Electronics gap appears every Tuesday. Workload estimates — no individual employee is named or ranked.',
+    s: 'Static weekly averages miss hourly demand — service gaps at peak, excess coverage at trough.',
+    duration: 10000
+  },
+  {
+    src: 'briefing.html',
+    chapterTitle: 'Slow cycles → one governed morning read',
+    k: 'Scene 05 · Daily briefing &amp; approvals',
+    h: 'One morning read. <em>One queue.</em>',
+    p: 'Three priorities, workforce observations, data caveats, approval queue. Every claim traceable to evidence. A human reviewer is required before anything acts on the business.',
+    s: 'Three teams, three versions of the same KPI. Decision cycles stall on definitional debates.',
+    duration: 11000
+  }
+];
+
+const stage = document.getElementById('stage');
+const frame = document.getElementById('stageFrame');
+const titleCard = document.getElementById('titleCard');
+const chNo = document.getElementById('ch-no');
+const chTitle = document.getElementById('ch-title');
+const capK = document.getElementById('cap-k').querySelector('span');
+const capKWrap = document.getElementById('cap-k');
+const capH = document.getElementById('cap-h');
+const capP = document.getElementById('cap-p');
+const capS = document.getElementById('cap-s');
+const dots = document.getElementById('dots');
+const timeEl = document.getElementById('time');
+const btnPlay = document.getElementById('btn-play');
+const btnPlayIco = document.getElementById('btn-play-ico');
+const btnPlayLabel = document.getElementById('btn-play-label');
+const btnPrev = document.getElementById('btn-prev');
+const btnNext = document.getElementById('btn-next');
+
+const INTRO_MS = 2800;
+const total = scenes.reduce((a, s) => a + s.duration, 0);
+
+// chapter dots
+scenes.forEach((_, i) => {
+  const b = document.createElement('button');
+  b.className = 'dot';
+  b.setAttribute('aria-label', 'Scene ' + (i + 1));
+  b.addEventListener('click', () => goTo(i));
+  dots.appendChild(b);
+});
+
+let curr = -1; // -1 = intro
+let playing = true;
+let introStart = 0;
+let sceneStart = 0;
+let sceneElapsedBefore = 0;
+let totalElapsedBefore = 0;
+let rafId = null;
+let introShown = false;
+
+function fmt(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return m + ':' + (r < 10 ? '0' + r : r);
+}
+
+function restartAnim(el) {
+  el.classList.remove('anim');
+  if (el.classList.contains('d2')) el.classList.remove('d2');
+  if (el.classList.contains('d3')) el.classList.remove('d3');
+  void el.offsetWidth;
+  el.classList.add('anim');
+}
+
+function applyCaption(sc) {
+  capK.textContent = sc.k;
+  capH.innerHTML = sc.h;
+  capP.textContent = sc.p;
+  capS.textContent = sc.s;
+  // reflow animation
+  [capKWrap, capH, capP, capS].forEach(el => el.classList.remove('anim'));
+  void capKWrap.offsetWidth;
+  capKWrap.classList.add('anim');
+  capH.classList.add('anim', 'd2');
+  capP.classList.add('anim', 'd3');
+  capS.classList.add('anim', 'd3');
+}
+
+function setScene(i) {
+  curr = i;
+  const sc = scenes[i];
+  // fade frame
+  stage.classList.add('fading');
+  stage.classList.remove('kenburns');
+  setTimeout(() => {
+    frame.src = sc.src;
+    stage.classList.remove('fading');
+    // start ken burns on next frame
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => stage.classList.add('kenburns'));
+    });
+  }, 320);
+
+  chNo.textContent = (i + 1);
+  chTitle.textContent = sc.chapterTitle;
+  applyCaption(sc);
+  dots.querySelectorAll('.dot').forEach((d, idx) => {
+    d.classList.toggle('active', idx === i);
+    d.classList.toggle('done', idx < i);
+  });
+
+  totalElapsedBefore = scenes.slice(0, i).reduce((a, s) => a + s.duration, 0);
+  sceneElapsedBefore = 0;
+  sceneStart = performance.now();
+}
+
+function tick(now) {
+  if (!playing) return;
+
+  if (curr === -1) {
+    // intro
+    const el = now - introStart;
+    const pct = Math.min(100, (el / INTRO_MS) * 100);
+    // show title card
+    if (!introShown) { titleCard.classList.add('show'); introShown = true; }
+    timeEl.textContent = fmt(0) + ' / ' + fmt(total);
+    if (el >= INTRO_MS) {
+      titleCard.classList.remove('show');
+      setScene(0);
+    }
+    rafId = requestAnimationFrame(tick);
+    return;
+  }
+
+  const sceneEl = sceneElapsedBefore + (now - sceneStart);
+  const sc = scenes[curr];
+  const totalEl = totalElapsedBefore + sceneEl;
+
+  // dot fill
+  const activeDot = dots.querySelector('.dot.active');
+  if (activeDot) activeDot.style.setProperty('--w', Math.min(100, (sceneEl / sc.duration) * 100) + '%');
+
+  timeEl.textContent = fmt(totalEl) + ' / ' + fmt(total);
+
+  if (sceneEl >= sc.duration) {
+    if (curr < scenes.length - 1) {
+      setScene(curr + 1);
+    } else {
+      // loop back to intro
+      curr = -1;
+      introStart = now;
+      introShown = false;
+      frame.src = '';
+    }
+  }
+
+  rafId = requestAnimationFrame(tick);
+}
+
+function play() {
+  if (playing) return;
+  playing = true;
+  stage.classList.remove('paused');
+  btnPlayIco.innerHTML = '<use href="#i-pause"/>';
+  btnPlayLabel.textContent = 'Pause';
+  if (curr === -1) {
+    introStart = performance.now() - sceneElapsedBefore; // reuse variable
+  } else {
+    sceneStart = performance.now();
+  }
+  rafId = requestAnimationFrame(tick);
+}
+
+function pause() {
+  if (!playing) return;
+  playing = false;
+  stage.classList.add('paused');
+  btnPlayIco.innerHTML = '<use href="#i-play"/>';
+  btnPlayLabel.textContent = 'Play';
+  if (curr >= 0) {
+    sceneElapsedBefore = sceneElapsedBefore + (performance.now() - sceneStart);
+  }
+  cancelAnimationFrame(rafId);
+}
+
+function goTo(i) {
+  const wasPlaying = playing;
+  if (playing) cancelAnimationFrame(rafId);
+  titleCard.classList.remove('show');
+  introShown = true;
+  setScene(i);
+  if (wasPlaying) {
+    rafId = requestAnimationFrame(tick);
+  } else {
+    // keep paused, but update progress
+    const activeDot = dots.querySelector('.dot.active');
+    if (activeDot) activeDot.style.setProperty('--w', '0%');
+    const totalEl = totalElapsedBefore;
+    timeEl.textContent = fmt(totalEl) + ' / ' + fmt(total);
+  }
+}
+
+btnPlay.addEventListener('click', () => playing ? pause() : play());
+btnPrev.addEventListener('click', () => goTo(Math.max(0, curr - 1)));
+btnNext.addEventListener('click', () => {
+  if (curr === -1) goTo(0);
+  else goTo(Math.min(scenes.length - 1, curr + 1));
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === ' ') { e.preventDefault(); playing ? pause() : play(); }
+  else if (e.key === 'ArrowLeft') btnPrev.click();
+  else if (e.key === 'ArrowRight') btnNext.click();
+  else if (e.key === 'Escape') pause();
+});
+
+// click stage to toggle
+stage.addEventListener('click', () => {
+  playing ? pause() : play();
+});
+
+// kick off
+introStart = performance.now();
+rafId = requestAnimationFrame(tick);
+</script>
+
+</body>
+</html>

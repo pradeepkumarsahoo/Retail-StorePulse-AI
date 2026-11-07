@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Workforce · StorePulse-AI</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="styles.css">
+<style>
+  .eval-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+  }
+  @media (max-width: 640px) { .eval-grid { grid-template-columns: 1fr 1fr; } }
+  .eval-cell { padding: 16px; background: var(--paper-raised); }
+  .eval-cell .lbl { font-family: var(--f-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  .eval-cell .val { font-family: var(--f-display); font-weight: 500; font-size: 22px; color: var(--ink); letter-spacing: -0.015em; font-variant-numeric: tabular-nums; }
+  .eval-cell .sub { font-family: var(--f-mono); font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .gap-grid {
+    display: grid;
+    grid-template-columns: repeat(14, 1fr);
+    gap: 3px;
+    margin: 12px 0 6px;
+  }
+  .gap-grid .cell {
+    aspect-ratio: 1;
+    border-radius: 2px;
+    position: relative;
+  }
+  .gap-grid .cell[data-v="ok"] { background: var(--good-soft); }
+  .gap-grid .cell[data-v="mild"] { background: var(--amber-soft); }
+  .gap-grid .cell[data-v="gap"] { background: var(--critical-soft); border: 1px solid var(--critical); }
+  .gap-grid .cell[data-v="over"] { background: var(--accent-soft); }
+  .heatmap-wrap {
+    display: grid;
+    grid-template-columns: 60px 1fr;
+    gap: 10px;
+    font-family: var(--f-mono);
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .heatmap-wrap .hour-col { display: flex; flex-direction: column; justify-content: space-between; padding: 2px 0; }
+  .heatmap-wrap .days { display: grid; grid-template-rows: auto 1fr auto; gap: 4px; }
+  .heatmap-wrap .day-labels { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+  .heatmap-wrap .day-labels span { text-align: center; letter-spacing: 0.1em; }
+  .heatmap-wrap .heatmap {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    grid-template-rows: repeat(10, 1fr);
+    gap: 3px;
+  }
+  .heatmap .h {
+    aspect-ratio: 1.2;
+    border-radius: 2px;
+    background: var(--c, var(--good-soft));
+  }
+  .legend-row { display: flex; gap: 14px; margin-top: 10px; font-family: var(--f-mono); font-size: 10px; color: var(--muted); flex-wrap: wrap; }
+  .legend-row .sw { width: 12px; height: 12px; display: inline-block; margin-right: 6px; vertical-align: middle; border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<svg hidden xmlns="http://www.w3.org/2000/svg"><defs>
+<symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+<symbol id="i-store" viewBox="0 0 24 24"><path d="M3 9l1-5h16l1 5"/><path d="M4 9v11h16V9"/><path d="M9 14h6"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+<symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"/><path d="M19 14l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/></symbol>
+<symbol id="i-layers" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="3" y1="20" x2="21" y2="20"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+<symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></symbol>
+<symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></symbol>
+<symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.74V17h8v-2.26A7 7 0 0 0 12 2z"/></symbol>
+<symbol id="i-pulse" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></symbol>
+<symbol id="i-grid-4" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></symbol>
+</defs></svg>
+
+<nav class="topnav">
+  <a href="index.html" class="nav-brand">
+    <svg class="nav-mark" viewBox="0 0 28 28" aria-hidden="true">
+      <rect x="2" y="12" width="4" height="12" fill="var(--teal)"/>
+      <rect x="8" y="7" width="4" height="17" fill="var(--accent)"/>
+      <rect x="14" y="10" width="4" height="14" fill="var(--teal)"/>
+      <rect x="20" y="4" width="4" height="20" fill="var(--accent)"/>
+    </svg>
+    StorePulse<em>·</em>AI
+  </a>
+  <div class="nav-links">
+    <a href="index.html" class="nav-link"><svg class="ico"><use href="#i-grid"/></svg>Demo</a>
+    <a href="regional.html" class="nav-link"><svg class="ico"><use href="#i-layers"/></svg>Regional</a>
+    <a href="store.html" class="nav-link"><svg class="ico"><use href="#i-store"/></svg>Store</a>
+    <a href="anomaly.html" class="nav-link"><svg class="ico"><use href="#i-search"/></svg>Investigate</a>
+    <a href="workforce.html" class="nav-link active"><svg class="ico"><use href="#i-users"/></svg>Workforce</a>
+    <a href="briefing.html" class="nav-link"><svg class="ico"><use href="#i-sun"/></svg>Briefing</a>
+  </div>
+  <div class="nav-user">
+    <div class="who"><strong>Alex Chen</strong>Regional · Chicago</div>
+    <div class="avatar">AC</div>
+    <button class="theme-btn" id="themeBtn"><svg class="ico"><use href="#i-sun"/></svg>Theme</button>
+  </div>
+</nav>
+
+<div class="wrap">
+  <div class="page-head">
+    <div>
+      <div class="page-eyebrow">Screen 04 · Workforce intelligence</div>
+      <h1 class="page-title">Labor <em>demand forecast</em> · Store #042 · Electronics</h1>
+      <div class="page-sub">Week of Nov 2–8, 2026 · forecast vs scheduled vs actual, with evaluation against a seasonal baseline.</div>
+    </div>
+    <div class="page-meta">
+      <span class="ai-badge"><svg class="ico"><use href="#i-sparkles"/></svg>Forecast</span><br>
+      <strong>Model</strong> sp-wf@v2.1 · retrained weekly<br>
+      <strong>Horizon</strong> 7d · hourly
+    </div>
+  </div>
+
+  <div class="problem-banner">
+    <span class="tag"><svg class="ico"><use href="#i-bulb"/></svg>Problem this solves</span>
+    <p><strong>Workforce mismatch.</strong> Static weekly averages miss hourly demand. The forecast estimates <em>workload</em>, not assignments — it surfaces the Tuesday 10am–2pm gap the manager should plan around. No employee is named; no schedule is auto-changed.</p>
+  </div>
+
+  <div class="split">
+    <div class="panel">
+      <div class="panel-head">
+        <h2 class="panel-h"><svg class="ico"><use href="#i-pulse"/></svg>Forecast vs scheduled vs actual</h2>
+        <div class="panel-sub">Tue Nov 3 · hourly FTE</div>
+      </div>
+      <svg class="chart" viewBox="0 0 640 260">
+        <line class="axis" x1="40" y1="220" x2="620" y2="220"/>
+        <g class="grid">
+          <line x1="40" y1="180" x2="620" y2="180"/>
+          <line x1="40" y1="140" x2="620" y2="140"/>
+          <line x1="40" y1="100" x2="620" y2="100"/>
+          <line x1="40" y1="60" x2="620" y2="60"/>
+          <line x1="40" y1="20" x2="620" y2="20"/>
+        </g>
+        <!-- Prediction interval (80%) -->
+        <path d="M 40,110 L 90,105 L 140,88 L 190,58 L 240,45 L 290,40 L 340,45 L 390,55 L 440,70 L 490,85 L 540,100 L 590,115 L 620,125 L 620,155 L 590,145 L 540,130 L 490,115 L 440,100 L 390,85 L 340,75 L 290,70 L 240,75 L 190,88 L 140,118 L 90,135 L 40,140 Z"
+          fill="var(--teal)" opacity="0.12"/>
+        <!-- Forecast -->
+        <polyline fill="none" stroke="var(--teal)" stroke-width="2.5"
+          points="40,125 90,120 140,103 190,73 240,60 290,55 340,60 390,70 440,85 490,100 540,115 590,130 620,140"/>
+        <!-- Scheduled (stepped) -->
+        <polyline fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="4 3"
+          points="40,160 140,160 140,120 340,120 340,100 490,100 490,140 620,140"/>
+        <!-- Actual coverage -->
+        <polyline fill="none" stroke="var(--critical)" stroke-width="2"
+          points="40,160 140,160 140,135 190,135 240,135 290,135 340,135 390,110 440,110 490,110 540,140 620,140"/>
+        <!-- Gap window shade -->
+        <rect x="140" y="15" width="200" height="205" fill="var(--critical)" opacity="0.06"/>
+        <text x="240" y="35" text-anchor="middle" fill="var(--critical)" font-weight="500">Coverage gap · 10am–2pm · −1.8 FTE</text>
+        <!-- Y labels -->
+        <text x="36" y="23" text-anchor="end">7 FTE</text>
+        <text x="36" y="63" text-anchor="end">6</text>
+        <text x="36" y="103" text-anchor="end">5</text>
+        <text x="36" y="143" text-anchor="end">4</text>
+        <text x="36" y="183" text-anchor="end">3</text>
+        <text x="36" y="223" text-anchor="end">2</text>
+        <!-- X labels -->
+        <text x="40" y="240" text-anchor="start">8am</text>
+        <text x="140" y="240" text-anchor="middle">10am</text>
+        <text x="290" y="240" text-anchor="middle">12pm</text>
+        <text x="440" y="240" text-anchor="middle">2pm</text>
+        <text x="590" y="240" text-anchor="middle">6pm</text>
+        <text x="620" y="240" text-anchor="end">8pm</text>
+        <!-- Legend -->
+        <g transform="translate(40,256)">
+          <line x1="0" y1="0" x2="18" y2="0" stroke="var(--teal)" stroke-width="2.5"/>
+          <text x="22" y="3" fill="var(--muted)">Forecast demand</text>
+          <line x1="150" y1="0" x2="168" y2="0" stroke="var(--accent)" stroke-width="2" stroke-dasharray="4 3"/>
+          <text x="172" y="3" fill="var(--muted)">Scheduled</text>
+          <line x1="260" y1="0" x2="278" y2="0" stroke="var(--critical)" stroke-width="2"/>
+          <text x="282" y="3" fill="var(--muted)">Actual coverage</text>
+        </g>
+      </svg>
+    </div>
+
+    <div>
+      <div class="panel">
+        <div class="panel-head">
+          <h2 class="panel-h"><svg class="ico teal"><use href="#i-target"/></svg>Model evaluation</h2>
+          <div class="panel-sub">vs seasonal baseline · 90d holdout</div>
+        </div>
+        <div class="eval-grid">
+          <div class="eval-cell">
+            <div class="lbl">WAPE</div>
+            <div class="val">11.8%</div>
+            <div class="sub">baseline 18.4%</div>
+          </div>
+          <div class="eval-cell">
+            <div class="lbl">MAE</div>
+            <div class="val">0.42</div>
+            <div class="sub">FTE · baseline 0.71</div>
+          </div>
+          <div class="eval-cell">
+            <div class="lbl">RMSE</div>
+            <div class="val">0.63</div>
+            <div class="sub">baseline 1.04</div>
+          </div>
+        </div>
+        <div class="note" style="margin-top:14px;">Time-based holdout · last 90 days. Baseline is a day-of-week × hour seasonal mean. All metrics regress through the evaluation harness on each retrain.</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2 class="panel-h"><svg class="ico"><use href="#i-bulb"/></svg>What-if</h2>
+          <div class="panel-sub">Scenario analysis</div>
+        </div>
+        <div style="font-size:13px; color: var(--ink-soft);">
+          <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--rule);"><span>+1 FTE Tue 10am–2pm</span><span style="font-family:var(--f-mono); color:var(--good);">+$340 est. net</span></div>
+          <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--rule);"><span>+2 FTE Tue 10am–2pm</span><span style="font-family:var(--f-mono); color:var(--good);">+$520 est. net</span></div>
+          <div style="display:flex; justify-content:space-between; padding:8px 0;"><span>Demand +10% (holiday)</span><span style="font-family:var(--f-mono); color:var(--amber);">−2.4 FTE gap</span></div>
+        </div>
+        <div class="note">Estimates use <code style="font-family:var(--f-mono); color:var(--accent);">mcp.labor_rate@v2026.10</code> (approved reference). Not a recommendation to change any individual's schedule.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2 class="panel-h"><svg class="ico"><use href="#i-calendar"/></svg>Weekly coverage view</h2>
+      <div class="panel-sub">Scheduled − forecast · hourly</div>
+    </div>
+    <div class="heatmap-wrap">
+      <div class="hour-col">
+        <span>8am</span>
+        <span>10am</span>
+        <span>12pm</span>
+        <span>2pm</span>
+        <span>4pm</span>
+        <span>6pm</span>
+        <span>8pm</span>
+      </div>
+      <div class="days">
+        <div class="day-labels">
+          <span>MON</span><span>TUE</span><span>WED</span><span>THU</span><span>FRI</span><span>SAT</span><span>SUN</span>
+        </div>
+        <div class="heatmap">
+          <!-- 7 cols x 10 rows, hours 8am..5pm roughly; colors by gap -->
+          <!-- Row 1 (8am) -->
+          <div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--good-soft);"></div>
+          <!-- Row 2 (9am) -->
+          <div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--amber-soft);"></div><div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--amber-soft);"></div><div class="h" style="--c:var(--amber-soft);"></div>
+          <!-- Row 3 (10am) -->
+          <div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--critical-soft); outline:1px solid var(--critical);"></div><div class="h" style="--c:var(--amber-soft);"></div><div class="h" style="--c:var(--amber-soft);"></div><div class="h" style="--c:var(--amber-soft);"></div><div class="h" style="--c:var(--critical-soft);"></div><div class="h" style="--c:var(--critical-soft);"></div>
+          <!-- Row 4 (11am) -->
+          <div class="h" style="--c:var(--amber-soft);"></div><div class="h" style="--c:var(--critical-soft); outline:1px solid var(--critical);"></div><div class="h" style="--c:var(--amber-soft);"></div><div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--critical-soft);"></div><div class="h" style="--c:var(--critical-soft);"></div>
+          <!-- Row 5 (12pm) -->
+          <div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--critical-soft); outline:1px solid var(--critical);"></div><div class="h" style="--c:var(--amber-soft);"></div><div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--amber-soft);"></div><div class="h" style="--c:var(--amber-soft);"></div>
+          <!-- Row 6 (1pm) -->
+          <div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--critical-soft); outline:1px solid var(--critical);"></div><div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--amber-soft);"></div><div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--good-soft);"></div>
+          <!-- Row 7 (2pm) -->
+          <div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--amber-soft);"></div><div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--accent-soft);"></div><div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--good-soft);"></div>
+          <!-- Row 8 (3pm) -->
+          <div class="h" style="--c:var(--accent-soft);"></div><div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--accent-soft);"></div><div class="h" style="--c:var(--accent-soft);"></div><div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--good-soft);"></div>
+          <!-- Row 9 (4pm) -->
+          <div class="h" style="--c:var(--accent-soft);"></div><div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--accent-soft);"></div><div class="h" style="--c:var(--accent-soft);"></div><div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--amber-soft);"></div><div class="h" style="--c:var(--good-soft);"></div>
+          <!-- Row 10 (5pm) -->
+          <div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--good-soft);"></div><div class="h" style="--c:var(--amber-soft);"></div><div class="h" style="--c:var(--amber-soft);"></div>
+        </div>
+      </div>
+    </div>
+    <div class="legend-row">
+      <span><span class="sw" style="background:var(--good-soft);"></span>Covered</span>
+      <span><span class="sw" style="background:var(--amber-soft);"></span>Mild gap · −0.5 to −1 FTE</span>
+      <span><span class="sw" style="background:var(--critical-soft); outline:1px solid var(--critical);"></span>Material gap · &gt; −1 FTE</span>
+      <span><span class="sw" style="background:var(--accent-soft);"></span>Over-coverage</span>
+    </div>
+    <div class="note">The Tue 10am–2pm cluster (red) is the pattern driving the Nov 3 conversion anomaly. Weekend mornings also under-staff vs forecast demand.</div>
+  </div>
+
+  <div class="foot">
+    <div>Synthetic data · demo scenario · no individual employees named</div>
+    <div>Model card · <code style="font-family:var(--f-mono);">docs/AI_GOVERNANCE.md#sp-wf-v2</code></div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var btn = document.getElementById('themeBtn');
+    if (!btn) return;
+    var root = document.documentElement;
+    try { var s = localStorage.getItem('sp_theme'); if (s === 'dark' || s === 'light') root.setAttribute('data-theme', s); } catch (e) {}
+    function syncIcon() {
+      var cur = root.getAttribute('data-theme');
+      var isDark = cur === 'dark' || (cur !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      var use = btn.querySelector('use');
+      if (use) use.setAttribute('href', isDark ? '#i-sun' : '#i-moon');
+    }
+    syncIcon();
+    btn.addEventListener('click', function () {
+      var cur = root.getAttribute('data-theme');
+      var isDark = cur === 'dark' ? false : (cur === 'light' ? true : !window.matchMedia('(prefers-color-scheme: dark)').matches);
+      var next = isDark ? 'dark' : 'light';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem('sp_theme', next); } catch (e) {}
+      syncIcon();
+    });
+  })();
+</script>
+</body>
+</html>

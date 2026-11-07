@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Daily Briefing · StorePulse-AI</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="styles.css">
+<style>
+  .briefing-doc {
+    background: var(--paper-raised);
+    border: 1px solid var(--paper-edge);
+    padding: 36px 40px;
+  }
+  @media (max-width: 640px) { .briefing-doc { padding: 24px; } }
+  .briefing-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--rule);
+    gap: 20px;
+    flex-wrap: wrap;
+  }
+  .briefing-header h2 {
+    font-family: var(--f-display);
+    font-weight: 500;
+    font-size: 24px;
+    letter-spacing: -0.01em;
+    margin: 4px 0 0;
+  }
+  .briefing-section {
+    padding: 22px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .briefing-section:last-of-type { border-bottom: 0; }
+  .briefing-section h3 {
+    font-family: var(--f-mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: var(--muted);
+    margin: 0 0 12px;
+    font-weight: 500;
+  }
+  .briefing-section p {
+    margin: 0 0 10px;
+    font-size: 15px;
+    line-height: 1.6;
+    color: var(--ink);
+  }
+  .briefing-section strong { font-weight: 500; }
+  .priority-list { list-style: none; padding: 0; margin: 10px 0 0; }
+  .priority-list li {
+    padding: 12px 0;
+    border-bottom: 1px dashed var(--rule);
+    display: grid;
+    grid-template-columns: 36px 1fr auto;
+    gap: 12px;
+    align-items: start;
+  }
+  .priority-list li:last-child { border-bottom: 0; }
+  .priority-list .n {
+    font-family: var(--f-display);
+    font-size: 20px;
+    color: var(--teal);
+    font-weight: 500;
+    line-height: 1;
+  }
+  .priority-list h4 {
+    margin: 0 0 4px;
+    font-family: var(--f-body);
+    font-weight: 500;
+    font-size: 14.5px;
+    color: var(--ink);
+  }
+  .priority-list p { margin: 0; font-size: 13px; color: var(--ink-soft); }
+  .priority-list .cite {
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+    margin-top: 6px;
+    display: inline-block;
+  }
+  .queue-item {
+    padding: 14px 16px;
+    border: 1px solid var(--rule);
+    margin-bottom: 10px;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 12px;
+    align-items: center;
+  }
+  .queue-item .q-body h4 {
+    margin: 0 0 4px;
+    font-family: var(--f-display);
+    font-size: 15px;
+    font-weight: 500;
+    letter-spacing: -0.005em;
+  }
+  .queue-item .q-body p { margin: 0; font-size: 12.5px; color: var(--ink-soft); }
+  .queue-item .q-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+  .queue-item .q-actions .btn { padding: 5px 10px; font-size: 11px; }
+  .conf-inline {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-family: var(--f-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+  }
+  .conf-inline .bar { width: 36px; height: 3px; background: var(--rule); position: relative; overflow: hidden; }
+  .conf-inline .bar::before { content: ""; position: absolute; inset: 0; background: var(--teal); width: var(--w, 50%); }
+  .limits {
+    padding: 14px;
+    background: var(--amber-soft);
+    border-left: 3px solid var(--amber);
+    font-size: 12.5px;
+    color: var(--ink);
+    margin-top: 16px;
+  }
+  .limits strong { font-family: var(--f-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--amber); display: block; margin-bottom: 4px; }
+</style>
+</head>
+<body>
+
+<svg hidden xmlns="http://www.w3.org/2000/svg"><defs>
+<symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+<symbol id="i-store" viewBox="0 0 24 24"><path d="M3 9l1-5h16l1 5"/><path d="M4 9v11h16V9"/><path d="M9 14h6"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+<symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"/><path d="M19 14l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-layers" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></symbol>
+<symbol id="i-clipboard" viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M8 11h8M8 15h8"/></symbol>
+<symbol id="i-flag" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></symbol>
+<symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.74V17h8v-2.26A7 7 0 0 0 12 2z"/></symbol>
+<symbol id="i-arrow-right" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></symbol>
+<symbol id="i-msg" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+<symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+<symbol id="i-coffee" viewBox="0 0 24 24"><path d="M18 8h1a4 4 0 0 1 0 8h-1"/><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></symbol>
+</defs></svg>
+
+<nav class="topnav">
+  <a href="index.html" class="nav-brand">
+    <svg class="nav-mark" viewBox="0 0 28 28" aria-hidden="true">
+      <rect x="2" y="12" width="4" height="12" fill="var(--teal)"/>
+      <rect x="8" y="7" width="4" height="17" fill="var(--accent)"/>
+      <rect x="14" y="10" width="4" height="14" fill="var(--teal)"/>
+      <rect x="20" y="4" width="4" height="20" fill="var(--accent)"/>
+    </svg>
+    StorePulse<em>·</em>AI
+  </a>
+  <div class="nav-links">
+    <a href="index.html" class="nav-link"><svg class="ico"><use href="#i-grid"/></svg>Demo</a>
+    <a href="regional.html" class="nav-link"><svg class="ico"><use href="#i-layers"/></svg>Regional</a>
+    <a href="store.html" class="nav-link"><svg class="ico"><use href="#i-store"/></svg>Store</a>
+    <a href="anomaly.html" class="nav-link"><svg class="ico"><use href="#i-search"/></svg>Investigate</a>
+    <a href="workforce.html" class="nav-link"><svg class="ico"><use href="#i-users"/></svg>Workforce</a>
+    <a href="briefing.html" class="nav-link active"><svg class="ico"><use href="#i-sun"/></svg>Briefing</a>
+  </div>
+  <div class="nav-user">
+    <div class="who"><strong>Alex Chen</strong>Regional · Chicago</div>
+    <div class="avatar">AC</div>
+    <button class="theme-btn" id="themeBtn"><svg class="ico"><use href="#i-sun"/></svg>Theme</button>
+  </div>
+</nav>
+
+<div class="wrap">
+  <div class="page-head">
+    <div>
+      <div class="page-eyebrow">Screen 05 · Daily briefing &amp; approvals</div>
+      <h1 class="page-title">Good morning, <em>Alex</em>.</h1>
+      <div class="page-sub">Friday · Nov 6, 2026 · generated at 06:00 CT · for Chicago Metro · 5 stores</div>
+    </div>
+    <div class="page-meta">
+      <span class="ai-badge"><svg class="ico"><use href="#i-sparkles"/></svg>AI-generated · evidence-linked</span><br>
+      <strong>Pipeline</strong> briefing@v1.4<br>
+      <strong>Data</strong> freshness · 2h · validations · <span class="pill good"><span class="dot"></span>pass</span>
+    </div>
+  </div>
+
+  <div class="problem-banner">
+    <span class="tag"><svg class="ico"><use href="#i-bulb"/></svg>Problem this solves</span>
+    <p><strong>Slow decision cycles and trust gaps.</strong> One concise morning read instead of five report tabs. Every claim is traceable to its underlying metric; every action routes through a human approval — no autonomous changes to schedules, employees, or pay.</p>
+  </div>
+
+  <div class="split">
+    <div class="briefing-doc">
+      <div class="briefing-header">
+        <div>
+          <div style="font-family: var(--f-mono); font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted);">Chicago Metro · daily briefing</div>
+          <h2>Yesterday in review · 3 priorities for today</h2>
+        </div>
+        <div>
+          <span class="pill info"><span class="dot"></span>5 stores · 1 critical</span>
+        </div>
+      </div>
+
+      <div class="briefing-section">
+        <h3>01 · Status</h3>
+        <p>Region closed yesterday at <strong>$487.2K</strong>, <strong>4.1% below target</strong>. The miss is concentrated in Store #042 (Downtown Chicago), which has an open critical anomaly. The other four stores held plan — Lincoln Park (#017) and Naperville Mall (#088) over-delivered. <span class="conf-inline"><span class="bar" style="--w: 95%;"></span>Confidence 0.95</span></p>
+      </div>
+
+      <div class="briefing-section">
+        <h3>02 · Top priorities for today</h3>
+        <ol class="priority-list">
+          <li>
+            <span class="n">1</span>
+            <div>
+              <h4>Review the Store #042 Electronics recommendation</h4>
+              <p>Pending reviewer action · <a href="anomaly.html" style="color:var(--accent);">REC-5518</a>. Two parallel actions proposed: service Register 4 (POS error spike was 3.2× baseline) and re-plan Tue 10am–2pm Electronics coverage (recurring −1.8 FTE gap). Both reversible, both within store manager authority.</p>
+              <span class="cite">evidence · ANOM-2026-1103-042-C · workforce.forecast@v2.1 · pos_terminal_events</span>
+            </div>
+            <span class="pill crit"><span class="dot"></span>Due today</span>
+          </li>
+          <li>
+            <span class="n">2</span>
+            <div>
+              <h4>Watch Schaumburg (#211) grocery run-rate</h4>
+              <p>Store #211 grocery is 6.8% below 4-week baseline over the last 3 days. Not yet an anomaly (within tolerance band), but the trend is one-sided. Suggest a Monday check-in with the store manager; no action required today.</p>
+              <span class="cite">evidence · metrics.query(store=211, dept=grocery, window=4w)</span>
+            </div>
+            <span class="pill warn"><span class="dot"></span>Watch</span>
+          </li>
+          <li>
+            <span class="n">3</span>
+            <div>
+              <h4>Weekend demand looks elevated across the region</h4>
+              <p>Forecast demand for Saturday is <strong>+8% vs 4-week Saturday average</strong>. Two stores (#017, #104) have scheduled coverage slightly under forecast. Suggest sharing with the store managers during this morning's standup for optional voluntary pickup.</p>
+              <span class="cite">evidence · workforce.forecast@v2.1 · schedule.current</span>
+            </div>
+            <span class="pill info"><span class="dot"></span>Plan</span>
+          </li>
+        </ol>
+      </div>
+
+      <div class="briefing-section">
+        <h3>03 · Workforce observations</h3>
+        <p>Store #042's Tuesday 10am–2pm Electronics gap is <strong>recurring</strong> — it appeared in 4 of the last 6 Tuesdays. The forecast flags a sustained +1.8 FTE workload estimate for that window. No individual employee is referenced; this is a workload estimate for schedule planning.</p>
+      </div>
+
+      <div class="briefing-section">
+        <h3>04 · What this briefing does <em style="font-family:var(--f-display);">not</em> say</h3>
+        <p style="color: var(--ink-soft); font-size: 13.5px;">We do not have evidence to attribute the Nov 3 miss to any particular employee, shift team, or scheduling decision. Promotional calendars, weather, and competitive activity were checked and ruled out. Inventory availability was within normal range. The recommendation addresses equipment and workload planning, not individual performance.</p>
+        <div class="limits">
+          <strong>Data caveats</strong>
+          Workforce actual-hours feed for 2026-11-05 is fresh as of 02:14 CT (<strong>2h lag</strong>). POS reconciliation for #088 has one unmatched transaction (under tolerance; does not affect this briefing). Model <code style="font-family:var(--f-mono);">sp-wf@v2.1</code> last evaluated 2026-11-02 · WAPE 11.8% vs baseline 18.4%.
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel">
+        <div class="panel-head">
+          <h2 class="panel-h"><svg class="ico"><use href="#i-clipboard"/></svg>Approval queue</h2>
+          <div class="panel-sub">3 open · pending review</div>
+        </div>
+        <div class="queue-item">
+          <div class="q-body">
+            <div style="display:flex; gap:8px; align-items:center; margin-bottom:4px;">
+              <span class="pill crit"><svg class="ico"><use href="#i-alert"/></svg>P1</span>
+              <span style="font-family:var(--f-mono); font-size:10px; color:var(--muted);">REC-5518</span>
+            </div>
+            <h4>Service Register 4 · re-plan Electronics coverage</h4>
+            <p>Store #042 · <span class="conf-inline"><span class="bar" style="--w: 82%;"></span>0.82</span></p>
+          </div>
+          <div class="q-actions">
+            <a href="anomaly.html" class="btn ghost"><svg class="ico"><use href="#i-eye"/></svg>Open</a>
+          </div>
+        </div>
+        <div class="queue-item">
+          <div class="q-body">
+            <div style="display:flex; gap:8px; align-items:center; margin-bottom:4px;">
+              <span class="pill info"><svg class="ico"><use href="#i-info"/></svg>P3</span>
+              <span style="font-family:var(--f-mono); font-size:10px; color:var(--muted);">REC-5501</span>
+            </div>
+            <h4>Share weekend demand lift with #017 &amp; #104</h4>
+            <p>Communication only · <span class="conf-inline"><span class="bar" style="--w: 68%;"></span>0.68</span></p>
+          </div>
+          <div class="q-actions">
+            <button class="btn good" style="padding:5px 10px; font-size:11px;"><svg class="ico"><use href="#i-check"/></svg>Approve</button>
+            <button class="btn ghost" style="padding:5px 10px; font-size:11px;"><svg class="ico"><use href="#i-x"/></svg>Reject</button>
+          </div>
+        </div>
+        <div class="queue-item">
+          <div class="q-body">
+            <div style="display:flex; gap:8px; align-items:center; margin-bottom:4px;">
+              <span class="pill warn"><svg class="ico"><use href="#i-alert"/></svg>P2</span>
+              <span style="font-family:var(--f-mono); font-size:10px; color:var(--muted);">REC-5498</span>
+            </div>
+            <h4>Schedule mid-week check-in · #211 grocery</h4>
+            <p>Trend watch · <span class="conf-inline"><span class="bar" style="--w: 55%;"></span>0.55</span></p>
+          </div>
+          <div class="q-actions">
+            <button class="btn good" style="padding:5px 10px; font-size:11px;"><svg class="ico"><use href="#i-check"/></svg>Approve</button>
+            <button class="btn ghost" style="padding:5px 10px; font-size:11px;"><svg class="ico"><use href="#i-x"/></svg>Reject</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2 class="panel-h"><svg class="ico"><use href="#i-shield"/></svg>Audit trail · this briefing</h2>
+          <div class="panel-sub">Written to <code style="font-family:var(--f-mono); font-size:11px;">audit.events</code></div>
+        </div>
+        <div style="font-family: var(--f-mono); font-size: 11.5px; color: var(--ink-soft); line-height: 1.7;">
+          <div>06:00:02 · supervisor · <span style="color:var(--teal);">BRIEFING_START</span> · region:chicago</div>
+          <div>06:00:03 · policy · scope_verified · alex.chen</div>
+          <div>06:00:04 · tool · metrics.query · stores=5 · 1,240 rows</div>
+          <div>06:00:11 · tool · anomaly.detail · ANOM-1103-042-C</div>
+          <div>06:00:18 · tool · mcp.labor_rate.get · v2026.10</div>
+          <div>06:00:27 · validator · <span style="color:var(--good);">evidence_coverage · 100%</span></div>
+          <div>06:00:28 · validator · <span style="color:var(--good);">schema_valid</span> · briefing.v1.4</div>
+          <div>06:00:30 · delivery · briefing → alex.chen</div>
+          <div style="padding-top: 8px; margin-top: 8px; border-top: 1px solid var(--rule); color: var(--muted);">Run cost · 4,812 tokens · $0.019 · latency 28s</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2 class="panel-h"><svg class="ico"><use href="#i-msg"/></svg>Feedback</h2>
+          <div class="panel-sub">Captured for model improvement</div>
+        </div>
+        <div style="font-size:13px; color: var(--ink-soft); margin-bottom:12px;">Was this briefing useful? Feedback feeds the evaluation harness and model card for <code style="font-family:var(--f-mono);">briefing@v1.4</code>.</div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn ghost" style="font-size:12px;"><svg class="ico"><use href="#i-check"/></svg>Useful</button>
+          <button class="btn ghost" style="font-size:12px;"><svg class="ico"><use href="#i-alert"/></svg>Missing something</button>
+          <button class="btn ghost" style="font-size:12px;"><svg class="ico"><use href="#i-msg"/></svg>Comment</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div>AI-generated · every claim evidence-linked · human reviewer required for any action</div>
+    <div>Synthetic data · demo scenario</div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var btn = document.getElementById('themeBtn');
+    if (!btn) return;
+    var root = document.documentElement;
+    try { var s = localStorage.getItem('sp_theme'); if (s === 'dark' || s === 'light') root.setAttribute('data-theme', s); } catch (e) {}
+    function syncIcon() {
+      var cur = root.getAttribute('data-theme');
+      var isDark = cur === 'dark' || (cur !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      var use = btn.querySelector('use');
+      if (use) use.setAttribute('href', isDark ? '#i-sun' : '#i-moon');
+    }
+    syncIcon();
+    btn.addEventListener('click', function () {
+      var cur = root.getAttribute('data-theme');
+      var isDark = cur === 'dark' ? false : (cur === 'light' ? true : !window.matchMedia('(prefers-color-scheme: dark)').matches);
+      var next = isDark ? 'dark' : 'light';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem('sp_theme', next); } catch (e) {}
+      syncIcon();
+    });
+  })();
+</script>
+</body>
+</html>

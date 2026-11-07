@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Store #042 · StorePulse-AI</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="styles.css">
+<style>
+  .dept-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .dept {
+    display: grid;
+    grid-template-columns: 110px 1fr 70px;
+    gap: 12px;
+    align-items: center;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+  }
+  .dept .d-bar {
+    height: 10px;
+    background: var(--rule);
+    position: relative;
+    overflow: hidden;
+  }
+  .dept .d-bar span {
+    display: block;
+    height: 100%;
+    background: var(--c, var(--teal));
+    width: var(--w, 50%);
+  }
+  .dept .d-val { text-align: right; font-family: var(--f-mono); font-size: 12px; }
+  .anomaly-item {
+    padding: 14px 16px;
+    border-left: 3px solid var(--critical);
+    background: var(--critical-soft);
+    margin-bottom: 10px;
+  }
+  .anomaly-item.warn { border-color: var(--amber); background: var(--amber-soft); }
+  .anomaly-item h4 { margin: 0 0 4px; font-family: var(--f-display); font-size: 14.5px; font-weight: 500; }
+  .anomaly-item p { margin: 0; font-size: 12.5px; color: var(--ink-soft); }
+  .anomaly-item a { color: var(--accent); font-size: 12px; margin-top: 6px; display: inline-block; }
+</style>
+</head>
+<body>
+
+<svg hidden xmlns="http://www.w3.org/2000/svg"><defs>
+<symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+<symbol id="i-store" viewBox="0 0 24 24"><path d="M3 9l1-5h16l1 5"/><path d="M4 9v11h16V9"/><path d="M9 14h6"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+<symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"/><path d="M19 14l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/></symbol>
+<symbol id="i-dollar" viewBox="0 0 24 24"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></symbol>
+<symbol id="i-cart" viewBox="0 0 24 24"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></symbol>
+<symbol id="i-receipt" viewBox="0 0 24 24"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1z"/><path d="M8 7h8M8 11h8M8 15h5"/></symbol>
+<symbol id="i-percent" viewBox="0 0 24 24"><line x1="19" y1="5" x2="5" y2="19"/><circle cx="6.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+<symbol id="i-briefcase" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></symbol>
+<symbol id="i-trend-up" viewBox="0 0 24 24"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></symbol>
+<symbol id="i-trend-down" viewBox="0 0 24 24"><polyline points="23 18 13.5 8.5 8.5 13.5 1 6"/><polyline points="17 18 23 18 23 12"/></symbol>
+<symbol id="i-minus" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-layers" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></symbol>
+<symbol id="i-pulse" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
+<symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="3" y1="20" x2="21" y2="20"/></symbol>
+<symbol id="i-clipboard" viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M8 11h8M8 15h8"/></symbol>
+<symbol id="i-flag" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></symbol>
+<symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.74V17h8v-2.26A7 7 0 0 0 12 2z"/></symbol>
+<symbol id="i-arrow-right" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></symbol>
+</defs></svg>
+
+<nav class="topnav">
+  <a href="index.html" class="nav-brand">
+    <svg class="nav-mark" viewBox="0 0 28 28" aria-hidden="true">
+      <rect x="2" y="12" width="4" height="12" fill="var(--teal)"/>
+      <rect x="8" y="7" width="4" height="17" fill="var(--accent)"/>
+      <rect x="14" y="10" width="4" height="14" fill="var(--teal)"/>
+      <rect x="20" y="4" width="4" height="20" fill="var(--accent)"/>
+    </svg>
+    StorePulse<em>·</em>AI
+  </a>
+  <div class="nav-links">
+    <a href="index.html" class="nav-link"><svg class="ico"><use href="#i-grid"/></svg>Demo</a>
+    <a href="regional.html" class="nav-link"><svg class="ico"><use href="#i-layers"/></svg>Regional</a>
+    <a href="store.html" class="nav-link active"><svg class="ico"><use href="#i-store"/></svg>Store</a>
+    <a href="anomaly.html" class="nav-link"><svg class="ico"><use href="#i-search"/></svg>Investigate</a>
+    <a href="workforce.html" class="nav-link"><svg class="ico"><use href="#i-users"/></svg>Workforce</a>
+    <a href="briefing.html" class="nav-link"><svg class="ico"><use href="#i-sun"/></svg>Briefing</a>
+  </div>
+  <div class="nav-user">
+    <div class="who"><strong>Alex Chen</strong>Regional · Chicago</div>
+    <div class="avatar">AC</div>
+    <button class="theme-btn" id="themeBtn"><svg class="ico"><use href="#i-sun"/></svg>Theme</button>
+  </div>
+</nav>
+
+<div class="wrap">
+  <div class="page-head">
+    <div>
+      <div class="page-eyebrow">Screen 02 · Store performance · <a href="regional.html" style="color:var(--teal); text-decoration:none;">← Chicago Metro</a></div>
+      <h1 class="page-title">Store #042 · <em>Downtown Chicago</em></h1>
+      <div class="page-sub">Flagship · 24,600 sq ft · 32 associates · opened 2011</div>
+    </div>
+    <div class="page-meta">
+      <strong>Nov 5, 2026</strong><br>
+      Data freshness · 2h ago<br>
+      <span class="pill crit"><span class="dot"></span>2 anomalies</span>
+    </div>
+  </div>
+
+  <div class="problem-banner">
+    <span class="tag"><svg class="ico"><use href="#i-bulb"/></svg>Problem this solves</span>
+    <p><strong>Reactive management.</strong> Instead of chasing a PDF report at week-end, Alex opens the store and sees what moved yesterday, by department and by hour, with the anomalies already surfaced and tied to evidence.</p>
+  </div>
+
+  <div class="kpi-row">
+    <div class="kpi">
+      <div class="k-label"><svg class="ico"><use href="#i-dollar"/></svg>Net Sales</div>
+      <div class="k-value">$142.8K</div>
+      <div class="k-delta down"><svg class="ico"><use href="#i-trend-down"/></svg> 8.4% vs target</div>
+    </div>
+    <div class="kpi">
+      <div class="k-label"><svg class="ico"><use href="#i-cart"/></svg>Transactions</div>
+      <div class="k-value">1,842</div>
+      <div class="k-delta down"><svg class="ico"><use href="#i-trend-down"/></svg> 22% vs 4w Tue</div>
+    </div>
+    <div class="kpi">
+      <div class="k-label"><svg class="ico"><use href="#i-receipt"/></svg>Avg Txn Value</div>
+      <div class="k-value">$77.52</div>
+      <div class="k-delta up"><svg class="ico"><use href="#i-trend-up"/></svg> 5.1%</div>
+    </div>
+    <div class="kpi">
+      <div class="k-label"><svg class="ico"><use href="#i-users"/></svg>Footfall</div>
+      <div class="k-value">4,118</div>
+      <div class="k-delta flat"><svg class="ico"><use href="#i-minus"/></svg> 2.1%</div>
+    </div>
+    <div class="kpi">
+      <div class="k-label"><svg class="ico"><use href="#i-percent"/></svg>Conversion</div>
+      <div class="k-value">44.7%</div>
+      <div class="k-delta down"><svg class="ico"><use href="#i-trend-down"/></svg> 23% vs baseline</div>
+    </div>
+    <div class="kpi">
+      <div class="k-label"><svg class="ico"><use href="#i-clock"/></svg>Sales / Labor Hr</div>
+      <div class="k-value">$198</div>
+      <div class="k-delta down"><svg class="ico"><use href="#i-trend-down"/></svg> 11% vs 4w avg</div>
+    </div>
+  </div>
+
+  <div class="split">
+    <div class="panel">
+      <div class="panel-head">
+        <h2 class="panel-h"><svg class="ico"><use href="#i-chart"/></svg>Sales · 30 days</h2>
+        <div class="panel-sub">Daily net sales · target overlay</div>
+      </div>
+      <svg class="chart" viewBox="0 0 640 220">
+        <line class="axis" x1="40" y1="180" x2="620" y2="180"/>
+        <g class="grid">
+          <line x1="40" y1="140" x2="620" y2="140"/>
+          <line x1="40" y1="100" x2="620" y2="100"/>
+          <line x1="40" y1="60" x2="620" y2="60"/>
+          <line x1="40" y1="20" x2="620" y2="20"/>
+        </g>
+        <!-- Target band -->
+        <rect x="40" y="55" width="580" height="10" fill="var(--accent)" opacity="0.08"/>
+        <line x1="40" y1="60" x2="620" y2="60" stroke="var(--accent)" stroke-width="1" stroke-dasharray="4 3" opacity="0.5"/>
+        <text x="624" y="63" text-anchor="start" fill="var(--accent)">Target</text>
+        <!-- Bars (30 days) -->
+        <g>
+          <!-- heights are relative -->
+          <rect x="44" y="70" width="14" height="110" fill="var(--teal)" opacity="0.85"/>
+          <rect x="62" y="85" width="14" height="95" fill="var(--teal)" opacity="0.85"/>
+          <rect x="80" y="75" width="14" height="105" fill="var(--teal)" opacity="0.85"/>
+          <rect x="98" y="82" width="14" height="98" fill="var(--teal)" opacity="0.85"/>
+          <rect x="116" y="55" width="14" height="125" fill="var(--teal)" opacity="0.85"/>
+          <rect x="134" y="48" width="14" height="132" fill="var(--teal)" opacity="0.85"/>
+          <rect x="152" y="40" width="14" height="140" fill="var(--teal)" opacity="0.85"/>
+          <rect x="170" y="78" width="14" height="102" fill="var(--teal)" opacity="0.85"/>
+          <rect x="188" y="72" width="14" height="108" fill="var(--teal)" opacity="0.85"/>
+          <rect x="206" y="80" width="14" height="100" fill="var(--teal)" opacity="0.85"/>
+          <rect x="224" y="68" width="14" height="112" fill="var(--teal)" opacity="0.85"/>
+          <rect x="242" y="58" width="14" height="122" fill="var(--teal)" opacity="0.85"/>
+          <rect x="260" y="45" width="14" height="135" fill="var(--teal)" opacity="0.85"/>
+          <rect x="278" y="52" width="14" height="128" fill="var(--teal)" opacity="0.85"/>
+          <rect x="296" y="75" width="14" height="105" fill="var(--teal)" opacity="0.85"/>
+          <rect x="314" y="70" width="14" height="110" fill="var(--teal)" opacity="0.85"/>
+          <rect x="332" y="82" width="14" height="98" fill="var(--teal)" opacity="0.85"/>
+          <rect x="350" y="65" width="14" height="115" fill="var(--teal)" opacity="0.85"/>
+          <rect x="368" y="50" width="14" height="130" fill="var(--teal)" opacity="0.85"/>
+          <rect x="386" y="42" width="14" height="138" fill="var(--teal)" opacity="0.85"/>
+          <rect x="404" y="48" width="14" height="132" fill="var(--teal)" opacity="0.85"/>
+          <rect x="422" y="70" width="14" height="110" fill="var(--teal)" opacity="0.85"/>
+          <rect x="440" y="72" width="14" height="108" fill="var(--teal)" opacity="0.85"/>
+          <rect x="458" y="68" width="14" height="112" fill="var(--teal)" opacity="0.85"/>
+          <rect x="476" y="60" width="14" height="120" fill="var(--teal)" opacity="0.85"/>
+          <rect x="494" y="55" width="14" height="125" fill="var(--teal)" opacity="0.85"/>
+          <rect x="512" y="48" width="14" height="132" fill="var(--teal)" opacity="0.85"/>
+          <rect x="530" y="82" width="14" height="98" fill="var(--teal)" opacity="0.85"/>
+          <rect x="548" y="72" width="14" height="108" fill="var(--teal)" opacity="0.85"/>
+          <!-- Nov 3 anomaly day -->
+          <rect x="566" y="108" width="14" height="72" fill="var(--critical)"/>
+          <!-- Nov 4 -->
+          <rect x="584" y="78" width="14" height="102" fill="var(--teal)" opacity="0.85"/>
+          <!-- Nov 5 -->
+          <rect x="602" y="95" width="14" height="85" fill="var(--amber)"/>
+        </g>
+        <!-- Callouts -->
+        <line x1="573" y1="108" x2="573" y2="30" stroke="var(--critical)" stroke-width="1" stroke-dasharray="2 2"/>
+        <text x="570" y="24" text-anchor="end" fill="var(--critical)" font-weight="500">Nov 3 · −18%</text>
+        <!-- Y labels -->
+        <text x="36" y="23" text-anchor="end">200K</text>
+        <text x="36" y="63" text-anchor="end">160K</text>
+        <text x="36" y="103" text-anchor="end">120K</text>
+        <text x="36" y="143" text-anchor="end">80K</text>
+        <text x="36" y="183" text-anchor="end">40K</text>
+        <text x="44" y="200" text-anchor="start">Oct 7</text>
+        <text x="620" y="200" text-anchor="end">Nov 5</text>
+      </svg>
+    </div>
+
+    <div>
+      <div class="panel">
+        <div class="panel-head">
+          <h2 class="panel-h"><svg class="ico"><use href="#i-layers"/></svg>Departments · Nov 5</h2>
+          <div class="panel-sub">vs 4-week baseline</div>
+        </div>
+        <div class="dept-list">
+          <div class="dept"><span>Electronics</span><span class="d-bar"><span style="--w:40%; --c:var(--critical);"></span></span><span class="d-val" style="color:var(--critical);">−22.1%</span></div>
+          <div class="dept"><span>Apparel</span><span class="d-bar"><span style="--w:55%; --c:var(--critical);"></span></span><span class="d-val" style="color:var(--critical);">−9.3%</span></div>
+          <div class="dept"><span>Home</span><span class="d-bar"><span style="--w:68%; --c:var(--amber);"></span></span><span class="d-val" style="color:var(--amber);">−2.1%</span></div>
+          <div class="dept"><span>Grocery</span><span class="d-bar"><span style="--w:72%; --c:var(--teal);"></span></span><span class="d-val" style="color:var(--good);">+1.4%</span></div>
+          <div class="dept"><span>Beauty</span><span class="d-bar"><span style="--w:78%; --c:var(--teal);"></span></span><span class="d-val" style="color:var(--good);">+3.8%</span></div>
+          <div class="dept"><span>Toys</span><span class="d-bar"><span style="--w:82%; --c:var(--teal);"></span></span><span class="d-val" style="color:var(--good);">+6.1%</span></div>
+        </div>
+        <div class="note">Shortfall is concentrated in Electronics and Apparel — both located on the main floor near entrance B.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="split">
+    <div class="panel">
+      <div class="panel-head">
+        <h2 class="panel-h"><svg class="ico critical"><use href="#i-alert"/></svg>Active anomalies</h2>
+        <div class="panel-sub">2 open · 1 critical</div>
+      </div>
+      <div class="anomaly-item">
+        <div style="display:flex; gap:10px; align-items:center; margin-bottom:6px;">
+          <span class="pill crit"><span class="dot"></span>Critical</span>
+          <span style="font-family:var(--f-mono); font-size:11px; color:var(--muted);">ANOM-2026-1103-042-C</span>
+        </div>
+        <h4>Conversion rate deviation · Electronics · Tue 10am–2pm</h4>
+        <p>Observed <strong>31.2%</strong> vs 30-day baseline <strong>54.1%</strong> (−23pp). Footfall within normal range. 2.3σ below expected.</p>
+        <a href="anomaly.html">Investigate →</a>
+      </div>
+      <div class="anomaly-item warn">
+        <div style="display:flex; gap:10px; align-items:center; margin-bottom:6px;">
+          <span class="pill warn"><span class="dot"></span>Watch</span>
+          <span style="font-family:var(--f-mono); font-size:11px; color:var(--muted);">ANOM-2026-1105-042-W</span>
+        </div>
+        <h4>Labor cost % of sales · trending up</h4>
+        <p>Observed <strong>16.1%</strong> over last 3 days vs plan <strong>14.0%</strong>. Driven by overtime on closing shifts.</p>
+        <a href="workforce.html">Open workforce →</a>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <h2 class="panel-h"><svg class="ico"><use href="#i-pulse"/></svg>Labor productivity</h2>
+        <div class="panel-sub">Sales / labor hour · 14 days</div>
+      </div>
+      <svg class="chart" viewBox="0 0 320 180">
+        <line class="axis" x1="30" y1="150" x2="310" y2="150"/>
+        <g class="grid">
+          <line x1="30" y1="120" x2="310" y2="120"/>
+          <line x1="30" y1="90" x2="310" y2="90"/>
+          <line x1="30" y1="60" x2="310" y2="60"/>
+          <line x1="30" y1="30" x2="310" y2="30"/>
+        </g>
+        <line x1="30" y1="55" x2="310" y2="55" stroke="var(--accent)" stroke-width="1" stroke-dasharray="4 3" opacity="0.5"/>
+        <text x="312" y="58" text-anchor="start" fill="var(--accent)">$230 target</text>
+        <polyline fill="none" stroke="var(--teal)" stroke-width="2"
+          points="30,50 50,55 70,48 90,52 110,45 130,50 150,60 170,58 190,65 210,75 230,80 250,85 270,100 290,105 310,110"/>
+        <circle cx="310" cy="110" r="4" fill="var(--amber)"/>
+        <text x="306" y="124" text-anchor="end" fill="var(--amber)">$198</text>
+        <text x="26" y="33" text-anchor="end">$260</text>
+        <text x="26" y="93" text-anchor="end">$220</text>
+        <text x="26" y="153" text-anchor="end">$180</text>
+        <text x="30" y="170" text-anchor="start">Oct 23</text>
+        <text x="310" y="170" text-anchor="end">Nov 5</text>
+      </svg>
+      <div class="note">Productivity softened over the last week — see workforce screen for forecast vs actual coverage.</div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div>Synthetic data · demo scenario</div>
+    <div>Metric formulas · <code style="font-family:var(--f-mono);">docs/KPI_DICTIONARY.md</code></div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var btn = document.getElementById('themeBtn');
+    if (!btn) return;
+    var root = document.documentElement;
+    try { var s = localStorage.getItem('sp_theme'); if (s === 'dark' || s === 'light') root.setAttribute('data-theme', s); } catch (e) {}
+    function syncIcon() {
+      var cur = root.getAttribute('data-theme');
+      var isDark = cur === 'dark' || (cur !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      var use = btn.querySelector('use');
+      if (use) use.setAttribute('href', isDark ? '#i-sun' : '#i-moon');
+    }
+    syncIcon();
+    btn.addEventListener('click', function () {
+      var cur = root.getAttribute('data-theme');
+      var isDark = cur === 'dark' ? false : (cur === 'light' ? true : !window.matchMedia('(prefers-color-scheme: dark)').matches);
+      var next = isDark ? 'dark' : 'light';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem('sp_theme', next); } catch (e) {}
+      syncIcon();
+    });
+  })();
+</script>
+</body>
+</html>

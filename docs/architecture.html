@@ -1,0 +1,1417 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>StorePulse-AI Architecture</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="StorePulse-AI — governed decision intelligence for multi-store retailers.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+  :root {
+    /* Light theme (fallback) */
+    --bg: #f6f7fb;
+    --bg-elev: #ffffff;
+    --bg-elev-2: #fbfbfd;
+    --border: rgba(15, 23, 42, 0.08);
+    --border-strong: rgba(15, 23, 42, 0.14);
+    --ink: #0b1220;
+    --ink-soft: #3b4a66;
+    --muted: #64748b;
+
+    --c-cyan: #06b6d4;
+    --c-violet: #8b5cf6;
+    --c-pink: #ec4899;
+    --c-emerald: #10b981;
+    --c-amber: #f59e0b;
+    --c-rose: #f43f5e;
+
+    --accent: var(--c-violet);
+    --accent-soft: rgba(139, 92, 246, 0.10);
+    --accent-glow: rgba(139, 92, 246, 0.35);
+
+    --grad-brand: linear-gradient(120deg, #22d3ee 0%, #8b5cf6 55%, #ec4899 100%);
+    --grad-warm:  linear-gradient(120deg, #f59e0b 0%, #ec4899 100%);
+    --grad-cool:  linear-gradient(120deg, #22d3ee 0%, #8b5cf6 100%);
+    --grad-emerald: linear-gradient(120deg, #10b981 0%, #22d3ee 100%);
+
+    --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.06);
+    --shadow-md: 0 8px 24px -8px rgba(15, 23, 42, 0.12), 0 2px 6px rgba(15, 23, 42, 0.06);
+    --shadow-lg: 0 24px 60px -20px rgba(15, 23, 42, 0.18), 0 8px 24px -8px rgba(15, 23, 42, 0.12);
+
+    --f-display: "Space Grotesk", "Inter", -apple-system, system-ui, sans-serif;
+    --f-body:    "Inter", -apple-system, system-ui, sans-serif;
+    --f-mono:    "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+
+    --radius-sm: 10px;
+    --radius: 16px;
+    --radius-lg: 24px;
+  }
+
+  /* Dark theme — default */
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #070914;
+      --bg-elev: rgba(255, 255, 255, 0.035);
+      --bg-elev-2: rgba(255, 255, 255, 0.06);
+      --border: rgba(255, 255, 255, 0.08);
+      --border-strong: rgba(255, 255, 255, 0.16);
+      --ink: #e8ecf5;
+      --ink-soft: #b7c0d4;
+      --muted: #7b86a3;
+
+      --accent-soft: rgba(139, 92, 246, 0.16);
+      --accent-glow: rgba(139, 92, 246, 0.45);
+
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+      --shadow-md: 0 10px 30px -10px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
+      --shadow-lg: 0 30px 80px -24px rgba(0, 0, 0, 0.7), 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #070914;
+    --bg-elev: rgba(255, 255, 255, 0.035);
+    --bg-elev-2: rgba(255, 255, 255, 0.06);
+    --border: rgba(255, 255, 255, 0.08);
+    --border-strong: rgba(255, 255, 255, 0.16);
+    --ink: #e8ecf5;
+    --ink-soft: #b7c0d4;
+    --muted: #7b86a3;
+    --accent-soft: rgba(139, 92, 246, 0.16);
+    --accent-glow: rgba(139, 92, 246, 0.45);
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 10px 30px -10px rgba(0, 0, 0, 0.6), 0 2px 8px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 30px 80px -24px rgba(0, 0, 0, 0.7), 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+    color-scheme: dark;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--f-body);
+    font-size: 15px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
+  }
+
+  /* Aurora background */
+  .aurora {
+    position: fixed;
+    inset: 0;
+    z-index: -2;
+    pointer-events: none;
+    overflow: hidden;
+  }
+  .aurora::before,
+  .aurora::after,
+  .aurora .b3 {
+    content: "";
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(90px);
+    opacity: 0.55;
+    will-change: transform;
+  }
+  .aurora::before {
+    width: 560px; height: 560px;
+    background: radial-gradient(circle, #22d3ee 0%, transparent 70%);
+    top: -160px; left: -140px;
+  }
+  .aurora::after {
+    width: 640px; height: 640px;
+    background: radial-gradient(circle, #ec4899 0%, transparent 70%);
+    top: 20vh; right: -200px;
+  }
+  .aurora .b3 {
+    width: 720px; height: 720px;
+    background: radial-gradient(circle, #8b5cf6 0%, transparent 70%);
+    bottom: -220px; left: 20vw;
+    opacity: 0.4;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) .aurora::before { opacity: 0.22; }
+    :root:not([data-theme="dark"]) .aurora::after  { opacity: 0.20; }
+    :root:not([data-theme="dark"]) .aurora .b3     { opacity: 0.18; }
+  }
+  :root[data-theme="light"] .aurora::before { opacity: 0.22; }
+  :root[data-theme="light"] .aurora::after  { opacity: 0.20; }
+  :root[data-theme="light"] .aurora .b3     { opacity: 0.18; }
+
+  /* Noise overlay for depth */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image:
+      radial-gradient(circle at 1px 1px, var(--border) 1px, transparent 0);
+    background-size: 32px 32px;
+    opacity: 0.6;
+    mask-image: linear-gradient(180deg, rgba(0,0,0,0.9), rgba(0,0,0,0.1) 60%, transparent);
+  }
+
+  ::selection { background: var(--c-violet); color: #fff; }
+
+  .page {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 28px max(20px, env(safe-area-inset-left)) 120px;
+  }
+
+  /* --- Masthead --- */
+  .masthead {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    padding: 14px 20px;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: var(--shadow-sm);
+    flex-wrap: wrap;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .mark {
+    width: 34px; height: 34px;
+    border-radius: 10px;
+    background: var(--grad-brand);
+    display: grid; place-items: center;
+    box-shadow: 0 6px 20px -4px var(--accent-glow);
+    flex-shrink: 0;
+  }
+  .mark svg { display: block; }
+  .brand-name {
+    font-family: var(--f-display);
+    font-weight: 600;
+    font-size: 17px;
+    letter-spacing: -0.02em;
+    margin: 0;
+    line-height: 1.1;
+  }
+  .brand-name em {
+    font-style: normal;
+    background: var(--grad-brand);
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    padding: 0 2px;
+  }
+  .brand-sub {
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    color: var(--muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+  .mast-right { display: flex; align-items: center; gap: 10px; }
+  .version-tag {
+    font-family: var(--f-mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--c-violet);
+    border: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  :root[data-theme="dark"] .version-tag,
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .version-tag { color: #c4b5fd; } }
+  .theme-toggle {
+    background: var(--bg-elev-2);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-family: var(--f-mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-soft);
+    cursor: pointer;
+    transition: transform .15s ease, border-color .2s ease, color .2s ease;
+  }
+  .theme-toggle:hover { color: var(--ink); border-color: var(--border-strong); transform: translateY(-1px); }
+
+  /* --- Hero --- */
+  .hero { padding: 88px 0 72px; max-width: 920px; }
+  .kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--f-mono);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    padding: 8px 14px;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    margin-bottom: 24px;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  .kicker .kdot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: var(--grad-brand);
+    box-shadow: 0 0 10px var(--accent-glow);
+  }
+  .hero h1 {
+    font-family: var(--f-display);
+    font-weight: 600;
+    font-size: clamp(36px, 5.8vw, 68px);
+    line-height: 1.05;
+    letter-spacing: -0.03em;
+    text-wrap: balance;
+    margin: 0 0 24px;
+  }
+  .hero h1 em {
+    font-style: normal;
+    background: var(--grad-brand);
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+  }
+  .hero .lead {
+    font-size: 19px;
+    line-height: 1.6;
+    color: var(--ink-soft);
+    max-width: 65ch;
+    margin: 0;
+  }
+  .hero .lead strong { color: var(--ink); font-weight: 600; }
+
+  /* --- Section pattern --- */
+  section {
+    padding: 72px 0;
+    border-top: 1px solid var(--border);
+    position: relative;
+  }
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font-family: var(--f-mono);
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+  .eyebrow .enum {
+    background: var(--grad-brand);
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    font-weight: 600;
+  }
+  .section-h {
+    font-family: var(--f-display);
+    font-weight: 600;
+    font-size: clamp(28px, 4vw, 44px);
+    letter-spacing: -0.02em;
+    line-height: 1.12;
+    text-wrap: balance;
+    margin: 0 0 20px;
+    max-width: 28ch;
+  }
+  .section-h em {
+    font-style: normal;
+    background: var(--grad-brand);
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+  }
+  .section-intro {
+    max-width: 70ch;
+    color: var(--ink-soft);
+    font-size: 16.5px;
+    margin: 0 0 44px;
+    line-height: 1.7;
+  }
+  .section-intro strong { color: var(--ink); font-weight: 600; }
+
+  /* --- Problem grid --- */
+  .problem-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+    counter-reset: problem;
+  }
+  .problem-card {
+    position: relative;
+    padding: 26px 24px 24px 24px;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease;
+    overflow: hidden;
+  }
+  .problem-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    padding: 1px;
+    background: var(--grad-warm);
+    opacity: 0;
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    transition: opacity .3s ease;
+    pointer-events: none;
+  }
+  .problem-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+  .problem-card:hover::before { opacity: 1; }
+
+  .problem-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 12px;
+  }
+  .problem-bullet {
+    counter-increment: problem;
+    flex-shrink: 0;
+    width: 42px;
+    height: 42px;
+    border-radius: 12px;
+    background: var(--grad-warm);
+    display: grid;
+    place-items: center;
+    font-family: var(--f-display);
+    font-weight: 700;
+    font-size: 17px;
+    color: #fff;
+    letter-spacing: -0.02em;
+    box-shadow: 0 8px 22px -6px rgba(236, 72, 153, 0.45);
+  }
+  .problem-bullet::before { content: counter(problem, decimal-leading-zero); }
+  .problem-num {
+    display: inline-block;
+    font-family: var(--f-mono);
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    background: var(--grad-warm);
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+  .problem-card h3 {
+    font-family: var(--f-display);
+    font-weight: 600;
+    font-size: 20px;
+    letter-spacing: -0.01em;
+    margin: 0 0 12px;
+    color: var(--ink);
+    line-height: 1.25;
+  }
+  .problem-card p {
+    margin: 0;
+    color: var(--ink-soft);
+    font-size: 14.5px;
+    line-height: 1.7;
+  }
+  .problem-card p strong {
+    color: var(--ink);
+    font-weight: 700;
+    background: linear-gradient(120deg, transparent 0%, rgba(245, 158, 11, 0.18) 0%, rgba(236, 72, 153, 0.18) 100%);
+    padding: 1px 4px;
+    border-radius: 4px;
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+  }
+
+  /* --- Promise / callout --- */
+  .promise {
+    position: relative;
+    padding: 32px 30px;
+    border-radius: var(--radius-lg);
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    overflow: hidden;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+  }
+  .promise::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: var(--grad-cool);
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    pointer-events: none;
+  }
+  .promise.warm::before { background: var(--grad-warm); }
+  .promise.emerald::before { background: var(--grad-emerald); }
+  .promise .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-family: var(--f-mono);
+    font-size: 11px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--c-violet);
+    margin-bottom: 12px;
+    font-weight: 600;
+  }
+  .promise.warm .tag { color: var(--c-amber); }
+  .promise.emerald .tag { color: var(--c-emerald); }
+  .promise .tag::before {
+    content: "";
+    width: 8px; height: 8px; border-radius: 50%;
+    background: currentColor;
+    box-shadow: 0 0 10px currentColor;
+  }
+  .promise p {
+    font-family: var(--f-display);
+    font-weight: 500;
+    font-size: clamp(19px, 2.4vw, 24px);
+    line-height: 1.4;
+    letter-spacing: -0.01em;
+    margin: 0;
+    color: var(--ink);
+    max-width: 62ch;
+  }
+  .promise p em {
+    font-style: normal;
+    background: var(--grad-brand);
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    font-weight: 600;
+  }
+  .promise.warm p em { background: var(--grad-warm); background-clip: text; -webkit-background-clip: text; }
+
+  /* --- Capability grid --- */
+  .caps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 16px;
+  }
+  .cap {
+    position: relative;
+    padding: 24px 22px;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease;
+    overflow: hidden;
+  }
+  .cap::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    background: var(--grad-cool);
+    opacity: 0;
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    transition: opacity .3s ease;
+    pointer-events: none;
+  }
+  .cap:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+  .cap:hover::before { opacity: 1; }
+  .cap-tag {
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: var(--bg-elev-2);
+    border: 1px solid var(--border);
+  }
+  .cap-tag .dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--grad-brand);
+    box-shadow: 0 0 10px var(--accent-glow);
+  }
+  .cap h3 {
+    font-family: var(--f-display);
+    font-weight: 600;
+    font-size: 19px;
+    letter-spacing: -0.01em;
+    margin: 0 0 10px;
+  }
+  .cap p {
+    margin: 0;
+    font-size: 14px;
+    color: var(--ink-soft);
+    line-height: 1.65;
+  }
+
+  /* --- Diagram wraps --- */
+  .diagram-wrap, .flow-wrap {
+    position: relative;
+    margin: 8px 0 20px;
+    overflow-x: auto;
+    padding: 32px;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: var(--shadow-md);
+  }
+  .diagram-wrap svg, .flow-wrap svg {
+    display: block;
+    min-width: 720px;
+    width: 100%;
+    height: auto;
+  }
+  .diagram-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    margin-top: 18px;
+    font-family: var(--f-mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+  .legend-item { display: flex; align-items: center; gap: 8px; }
+  .legend-swatch {
+    width: 14px; height: 14px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+
+  /* --- Scope split --- */
+  .scope-split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 760px) {
+    .scope-split { grid-template-columns: 1fr; gap: 16px; }
+  }
+  .scope-col {
+    padding: 28px 26px;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    position: relative;
+    overflow: hidden;
+  }
+  .scope-col.v1::before,
+  .scope-col.future::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1px;
+    border-radius: inherit;
+    -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+            mask-composite: exclude;
+    pointer-events: none;
+    opacity: 0.6;
+  }
+  .scope-col.v1::before { background: var(--grad-emerald); }
+  .scope-col.future::before { background: var(--grad-cool); }
+  .scope-col h3 {
+    font-family: var(--f-display);
+    font-size: 22px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0 0 4px;
+  }
+  .scope-col .scope-sub {
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    color: var(--muted);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-bottom: 18px;
+    display: block;
+  }
+  .scope-col ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .scope-col li {
+    padding: 12px 0;
+    border-bottom: 1px dashed var(--border);
+    font-size: 14.5px;
+    color: var(--ink);
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .scope-col li:last-child { border-bottom: 0; }
+  .scope-col li .bullet {
+    flex-shrink: 0;
+    width: 10px;
+    height: 10px;
+    margin-top: 7px;
+    border-radius: 50%;
+  }
+  .scope-col.v1 .bullet { background: var(--grad-emerald); box-shadow: 0 0 8px rgba(16, 185, 129, 0.5); }
+  .scope-col.future .bullet { background: transparent; border: 1.5px solid var(--c-violet); }
+
+  /* --- Principles --- */
+  .principles {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+    gap: 16px;
+  }
+  .principle {
+    padding: 24px 22px;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    position: relative;
+    overflow: hidden;
+    transition: transform .2s ease, border-color .2s ease;
+  }
+  .principle:hover { transform: translateY(-2px); border-color: var(--border-strong); }
+  .principle .pnum {
+    display: inline-block;
+    font-family: var(--f-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    background: var(--grad-brand);
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent;
+    margin-bottom: 12px;
+  }
+  .principle h4 {
+    font-family: var(--f-display);
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    margin: 0 0 8px;
+  }
+  .principle p {
+    font-size: 14px;
+    color: var(--ink-soft);
+    margin: 0;
+    line-height: 1.65;
+  }
+
+  /* --- Stack grid --- */
+  .stack-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 12px;
+  }
+  .stack-cell {
+    padding: 18px 18px;
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    transition: border-color .2s ease, transform .2s ease;
+    font-family: var(--f-mono);
+    font-size: 13px;
+  }
+  .stack-cell:hover { border-color: var(--border-strong); transform: translateY(-2px); }
+  .stack-cell .label {
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    display: block;
+    margin-bottom: 6px;
+  }
+  .stack-cell .value { color: var(--ink); font-weight: 500; }
+
+  /* --- Footer --- */
+  footer {
+    padding-top: 40px;
+    margin-top: 48px;
+    border-top: 1px solid var(--border);
+    font-family: var(--f-mono);
+    font-size: 11px;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  /* --- SVG helpers (shared across diagrams) --- */
+  .d-arrow { stroke: var(--muted); fill: none; stroke-width: 1.4; opacity: 0.7; }
+  .d-node-bg { fill: var(--bg-elev-2); stroke: var(--border-strong); stroke-width: 1; }
+  .d-user-bg { fill: rgba(34, 211, 238, 0.12); stroke: var(--c-cyan); stroke-width: 1; }
+  .d-ai-bg { fill: rgba(139, 92, 246, 0.14); stroke: var(--c-violet); stroke-width: 1; }
+  .d-data-bg { fill: rgba(245, 158, 11, 0.12); stroke: var(--c-amber); stroke-width: 1; }
+  .d-gov-bg { fill: rgba(236, 72, 153, 0.08); stroke: var(--c-pink); stroke-width: 1; stroke-dasharray: 4 3; }
+  .d-title { font-family: var(--f-display); font-weight: 600; font-size: 13px; fill: var(--ink); }
+  .d-label { font-family: var(--f-body); font-size: 11px; fill: var(--ink-soft); }
+  .d-tag { font-family: var(--f-mono); font-size: 9.5px; fill: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; font-weight: 600; }
+
+  /* Code inline */
+  code.inline {
+    font-family: var(--f-mono);
+    font-size: 13px;
+    padding: 2px 8px;
+    border-radius: 6px;
+    background: var(--accent-soft);
+    color: var(--c-violet);
+    border: 1px solid var(--border);
+  }
+
+  @media print { .theme-toggle, .aurora { display: none; } body::before { display: none; } }
+</style>
+</head>
+<body>
+
+<div class="aurora" aria-hidden="true"><div class="b3"></div></div>
+
+<div class="page">
+  <header class="masthead">
+    <div class="brand">
+      <div class="mark">
+        <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+          <path d="M3 10 L7 10 L9 5 L11 15 L13 10 L17 10" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-name">StorePulse<em>·</em>AI</div>
+        <div class="brand-sub">Retail Decision Intelligence</div>
+      </div>
+    </div>
+    <div class="mast-right">
+      <span class="version-tag">v0.1 · Prototype</span>
+      <button class="theme-toggle" id="themeBtn" aria-label="Toggle theme">Theme</button>
+    </div>
+  </header>
+
+  <section class="hero" style="border-top: 0;">
+    <div class="kicker"><span class="kdot"></span>AI-Powered Store Operations · Workforce Intelligence · Decision Platform</div>
+    <h1>From <em>what happened</em> to <em>what we should do</em>, with evidence a manager can trust.</h1>
+    <p class="lead">
+      StorePulse-AI is a decision-support platform for multi-store retailers. It unifies fragmented store, workforce,
+      and operations data into governed analytics and explains the signals through <strong>constrained agentic workflows</strong> —
+      every recommendation carries its evidence, its assumptions, and a human in the loop.
+    </p>
+  </section>
+
+  <!-- PROBLEM STATEMENT -->
+  <section id="problem-statement">
+    <div class="eyebrow"><span class="enum">01</span> Problem Statement</div>
+    <h2 class="section-h">Eight fragmentation points that quietly cost every store.</h2>
+    <p class="section-intro">
+      Large multi-store retailers run on data that never meets in one place. A regional manager overseeing 40 stores
+      typically touches 6+ systems before 9am — POS, workforce management, inventory, labor-budget sheets, exception
+      emails, BI dashboards — then reconciles the gaps in a spreadsheet. The data exists. The decision window does
+      not. Each day, measurable revenue and labor dollars leak through <strong>eight recurring fractures</strong> in the operating model.
+    </p>
+    <div class="problem-grid">
+      <div class="problem-card">
+        <div class="problem-head">
+          <div class="problem-bullet"></div>
+          <span class="problem-num">Visibility</span>
+        </div>
+        <h3>Fragmented view across systems</h3>
+        <p><strong>Sales, labor, footfall, and inventory signals live in separate systems</strong> with different refresh cadences,
+          grain, and owners. Managers reconcile them in spreadsheets, so <strong>no one sees a trusted, unified store picture
+          before the decisions of the day are already made</strong>.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-head">
+          <div class="problem-bullet"></div>
+          <span class="problem-num">Reactive</span>
+        </div>
+        <h3>Descriptive, not diagnostic</h3>
+        <p><strong>Dashboards report what happened — not why</strong>. Which drivers moved and what to do about it falls to
+          manual investigation — tribal knowledge, side-conversations, and gut feel — so <strong>the same questions are
+          re-asked every week</strong> across stores and regions.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-head">
+          <div class="problem-bullet"></div>
+          <span class="problem-num">Workforce</span>
+        </div>
+        <h3>Static staffing plans miss real demand</h3>
+        <p><strong>Schedules built on weekly averages miss hourly and intra-day demand</strong>. Peak periods run short on coverage
+          and lose conversion; trough periods carry excess hours. <strong>Labor productivity and customer service erode
+          together</strong>, and neither is visible until payroll closes.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-head">
+          <div class="problem-bullet"></div>
+          <span class="problem-num">Late Signals</span>
+        </div>
+        <h3>Anomalies caught too late</h3>
+        <p>Conversion drops, availability gaps, basket-size shifts, and refund spikes <strong>surface in month-end reviews —
+          long after corrective action is cheap</strong>. By the time a store manager learns about an exception, <strong>the week,
+          the promotion, or the season is already gone</strong>.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-head">
+          <div class="problem-bullet"></div>
+          <span class="problem-num">Trust</span>
+        </div>
+        <h3>KPIs that disagree across teams</h3>
+        <p><strong>Three teams, three versions of "sales per labor hour."</strong> Metric definitions, filters, and time-window rules
+          differ by tool, so <strong>decision cycles stall on definitional debates instead of action</strong>. Confidence in the data
+          — and in any AI built on top of it — collapses the moment numbers conflict.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-head">
+          <div class="problem-bullet"></div>
+          <span class="problem-num">Inbound Blindspot</span>
+        </div>
+        <h3>Labor arrives, inventory doesn't</h3>
+        <p>Associates clock in on schedule, but <strong>the DC truck is late, re-routed, or short</strong> — so there is nothing to
+          stock, face, or move to the floor. <strong>Labor laws make it costly to send staff home</strong> once they've reported,
+          and front-office tasks can't absorb a full crew, so <strong>paid hours convert to idle time</strong>. Without live
+          inbound-truck ETAs from distribution centers, shift plans cannot flex with arrival variance, and
+          <strong>millions of dollars a year leak out as unproductive labor hours</strong> — a silent tax no dashboard shows today.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-head">
+          <div class="problem-bullet"></div>
+          <span class="problem-num">External Signals</span>
+        </div>
+        <h3>Forecasts ignore the real world</h3>
+        <p><strong>Weekly sales and labor forecasts are built almost entirely on internal history</strong> — last year, last month,
+          last four weeks — and stay blind to the forces that will actually shape next week's footfall:
+          <strong>severe weather, heat waves, snow events, political protests and curfews, regional conflict, strikes,
+          transit disruptions, holidays observed differently by community, viral social trends, and local event
+          cancellations</strong>. Planners scan news and social feeds informally, triage by gut, and either over-staff
+          defensively or get caught short when the signal was already in the public record days earlier. <strong>The miss
+          cuts both ways — lost sales on surge days, paid idle labor on collapse days</strong> — and neither is traceable
+          to a forecast assumption anyone can audit.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-head">
+          <div class="problem-bullet"></div>
+          <span class="problem-num">Customer Sentiment</span>
+        </div>
+        <h3>Stores are blind to how customers feel</h3>
+        <p><strong>Service score comes from occasional NPS surveys with single-digit response rates</strong>, lagging the actual
+          experience by weeks. The frustrated shopper at checkout, the confused browser at the service desk, the
+          abandoned cart at a chaotic aisle — <strong>none of it reaches the manager in time to coach, adjust, or recover</strong>.
+          By the time dissatisfaction shows up in a review, a return, or a churn number, the moment is gone: the
+          associate didn't know to engage, the shift lead didn't know to re-staff, and <strong>the same pattern repeats
+          the next day in the same zones at the same hours</strong>. Managers are left asking "were we attentive today?"
+          with no evidence to answer.</p>
+      </div>
+    </div>
+    <div class="promise warm" style="margin-top: 36px;">
+      <div class="tag">Business impact</div>
+      <p>The compounded effect is <em>missed sales</em>, avoidable operating expense, poor labor productivity,
+        long customer waits, and inconsistent execution across the fleet — a gap that widens every quarter the
+        operating model stays spreadsheet-bound.</p>
+    </div>
+  </section>
+
+  <!-- PROPOSED SOLUTION -->
+  <section id="proposed-solution">
+    <div class="eyebrow"><span class="enum">02</span> Proposed Solution</div>
+    <h2 class="section-h">A governed <em>decision layer</em>, not another dashboard.</h2>
+
+    <div class="promise" style="margin-bottom: 36px;">
+      <div class="tag">Core promise</div>
+      <p>Move store teams from <em>"what happened?"</em> to <em>"what's likely next, why, and what should we consider doing"</em> — with every claim traceable to its data, its time window, and the reviewer who approved it.</p>
+    </div>
+
+    <p class="section-intro">
+      StorePulse-AI is a decision-support platform — not an autonomous scheduler or employee-management authority.
+      It unifies store, workforce, and operations data into a governed analytics core, then layers
+      <strong>constrained agentic workflows</strong> that explain the signals and propose next actions. Nine working
+      capabilities ship on a single modular monolith: deterministic where accuracy demands it (KPIs, forecasts,
+      anomaly thresholds), AI-assisted where interpretation adds value (hypothesis ranking, briefings, drill-down
+      questions). Every operational recommendation routes through a human reviewer before anything moves in a
+      source system.
+    </p>
+
+    <div class="caps">
+      <div class="cap">
+        <div class="cap-tag"><span class="dot"></span>Analytics</div>
+        <h3>Regional command center</h3>
+        <p>Unified KPIs across stores, regions, and districts with a central metric catalog, lineage from source
+          event to dashboard tile, and per-metric validation status. One definition of sales per labor hour,
+          conversion, shrink, and basket, enforced for both humans and agents.</p>
+      </div>
+      <div class="cap">
+        <div class="cap-tag"><span class="dot"></span>Forecasting</div>
+        <h3>Workforce demand</h3>
+        <p>Store · department · time-slot labor forecasts with baseline comparison, holdout backtests, WAPE/MAE
+          reporting, and a coverage-gap view that flags where scheduled hours diverge from predicted demand —
+          before the schedule is published.</p>
+      </div>
+      <div class="cap">
+        <div class="cap-tag"><span class="dot"></span>Detection</div>
+        <h3>Anomaly &amp; exception feed</h3>
+        <p>Rules plus statistical detection on sales, labor, conversion, returns, availability, and refunds. Each
+          flag carries its baseline, deviation, confidence band, and the exact query that produced it, so the
+          manager can trust it without opening another tool.</p>
+      </div>
+      <div class="cap">
+        <div class="cap-tag"><span class="dot"></span>Agentic</div>
+        <h3>Evidence-first investigation</h3>
+        <p>Specialist agents (sales, labor, inventory, customer-experience) retrieve validated metrics through a
+          typed tool gateway, rank competing hypotheses, and cite the records, time windows, and calculations
+          behind every claim. No free-text speculation, no hidden chain of thought.</p>
+      </div>
+      <div class="cap">
+        <div class="cap-tag"><span class="dot"></span>Briefing</div>
+        <h3>Daily manager briefing</h3>
+        <p>Role-specific morning digest for store managers, regional leads, and workforce planners: priorities for
+          the day, workforce observations, open anomalies, and suggested next actions — each actionable in one
+          click, each traceable back to its source evidence.</p>
+      </div>
+      <div class="cap">
+        <div class="cap-tag"><span class="dot"></span>Inbound</div>
+        <h3>DC &amp; truck tracking</h3>
+        <p>Live visibility of outbound loads from each distribution center — truck ID, SKUs on board, planned
+          departure, GPS/telematics ETA, and delay reasons — joined to the store's shift plan. The system
+          continuously re-projects "stockable work hours" per store per day, flags shifts where predicted labor
+          supply will outrun stockable workload, and recommends pre-approved reassignments (training, resets,
+          back-of-house, customer recovery) so paid hours stay productive when a truck slips.</p>
+      </div>
+      <div class="cap">
+        <div class="cap-tag"><span class="dot"></span>External Signals</div>
+        <h3>Weather, events &amp; news sensing</h3>
+        <p>A governed external-signal layer ingests weather forecasts (NOAA / national met services), public event
+          calendars, transit and traffic advisories, and a curated feed of news and social-media trends filtered
+          by store trade-area. Signals are scored for relevance, blast-radius, and confidence, then surfaced as
+          explicit <em>forecast adjusters</em>: each weekly sales and labor projection carries the baseline
+          number, the adjustment delta, the triggering signal, and its source link. A reviewer can accept,
+          override, or reject the adjuster, and every published forecast records the exact external evidence it
+          used — so defensive over-staffing and missed surge days both become auditable decisions, not gut calls.</p>
+      </div>
+      <div class="cap">
+        <div class="cap-tag"><span class="dot"></span>Service Experience</div>
+        <h3>Camera sentiment &amp; daily service score</h3>
+        <p><strong>Opt-in, privacy-preserving computer vision</strong> at entrance, checkout, and service-desk zones reads
+          aggregated, anonymized facial-sentiment signals (positive · neutral · frustrated · distressed) and rolls
+          them into a per-store <em>daily service score</em> with hourly and zone-level breakdowns. The system
+          never identifies individuals, stores no raw frames (edge inference → feature vectors only), honors
+          regional law (GDPR / BIPA / state biometric statutes), requires consent signage, and is disabled by
+          default per store.</p>
+        <p style="margin-top: 10px;">
+          Each morning briefing surfaces: <strong>yesterday's service score vs. baseline</strong>, zones and hours where
+          sentiment dropped, a correlated view against queue length, staff count, truck arrivals, and weather, and
+          a <strong>coaching nudge for the shift lead</strong> — e.g. <em>"Checkout trended frustrated 4–6pm; consider
+          opening a second register and a floor-walker."</em> Detail drill-down shows a minute-by-minute sentiment
+          curve with linked events. Scores measure <strong>customer experience in zones and time windows, never
+          individual employees</strong>; used to help associates give better attention, not to rank them.</p>
+      </div>
+      <div class="cap">
+        <div class="cap-tag"><span class="dot"></span>Governance</div>
+        <h3>Audit &amp; approvals</h3>
+        <p>Model versions, data-quality snapshots, run traces, tool-call logs, prompt and policy versions, and a
+          recommendation lifecycle (<em>drafted → reviewed → approved → acted → outcome</em>) that requires
+          explicit human sign-off and preserves the full evidence trail for auditors.</p>
+      </div>
+    </div>
+
+    <div class="promise emerald" style="margin-top: 36px;">
+      <div class="tag">How it maps to the problem</div>
+      <p style="font-size: clamp(16px, 2vw, 20px);">
+        <em>Visibility</em> → unified KPI service.
+        <em>Reactive</em> → agentic root-cause investigation.
+        <em>Workforce</em> → time-slot demand forecasts with coverage gaps.
+        <em>Late signals</em> → continuous anomaly detection feeding the daily briefing.
+        <em>Trust</em> → one metric catalog, lineage, and model/version provenance on every claim.
+        <em>Inbound blindspot</em> → DC &amp; truck tracking joined to the shift plan, so idle hours are predicted and redeployed before the day starts.
+        <em>External signals</em> → weather, events, and curated news/social feeds become explicit, auditable adjusters on the weekly sales and labor forecast.
+        <em>Customer sentiment</em> → opt-in camera sentiment rolled into a daily service score, by zone and hour, with coaching nudges for shift leads — never individual employee scoring.
+      </p>
+    </div>
+  </section>
+
+  <!-- ARCHITECTURE -->
+  <section>
+    <div class="eyebrow"><span class="enum">03</span> Architecture</div>
+    <h2 class="section-h">A modular monolith with clean boundaries and <em>guarded agents</em>.</h2>
+    <p class="section-intro">
+      One deployable, four logical layers, strict trust boundaries around the AI runtime. Domain logic stays independent of
+      FastAPI, React, the LLM provider, and the MCP adapter — so any of them can be swapped without rewriting the core.
+    </p>
+
+    <div class="diagram-wrap" aria-label="System architecture diagram">
+      <svg viewBox="0 0 960 560" role="img">
+        <title>StorePulse-AI system architecture</title>
+
+        <!-- USERS -->
+        <g transform="translate(40,20)">
+          <rect class="d-user-bg" x="0" y="0" width="880" height="56" rx="10"/>
+          <text class="d-tag" x="14" y="20">Users · RBAC + Region/Store Scope</text>
+          <g font-family="Inter, sans-serif" font-size="12" fill="var(--ink)">
+            <text x="24" y="44">Store Manager</text>
+            <text x="190" y="44">Regional Manager</text>
+            <text x="370" y="44">Workforce Planner</text>
+            <text x="560" y="44">Ops Leader</text>
+            <text x="700" y="44">Platform Admin</text>
+            <text x="820" y="44">Auditor</text>
+          </g>
+        </g>
+        <path class="d-arrow" d="M 480 76 L 480 94" marker-end="url(#arr)"/>
+
+        <!-- PRESENTATION -->
+        <g transform="translate(40,96)">
+          <rect class="d-node-bg" x="0" y="0" width="880" height="44" rx="10"/>
+          <text class="d-tag" x="14" y="18">Presentation</text>
+          <text class="d-title" x="14" y="36">React + TypeScript · Role-based dashboards · Accessible, responsive</text>
+        </g>
+        <path class="d-arrow" d="M 480 140 L 480 158" marker-end="url(#arr)"/>
+
+        <!-- API / APPLICATION -->
+        <g transform="translate(40,160)">
+          <rect class="d-node-bg" x="0" y="0" width="880" height="58" rx="10"/>
+          <text class="d-tag" x="14" y="18">API &amp; Application · FastAPI /api/v1</text>
+          <text class="d-title" x="14" y="38">AuthN · AuthZ · Policy &amp; scope checks · Use cases · Query services · Rate limits</text>
+          <text class="d-label" x="14" y="54">OpenAPI contracts · structured errors · correlation IDs</text>
+        </g>
+
+        <!-- Three core pillars -->
+        <g transform="translate(40,244)">
+          <rect class="d-node-bg" x="0" y="0" width="270" height="130" rx="10"/>
+          <text class="d-tag" x="14" y="20">Core Analytics</text>
+          <text class="d-title" x="14" y="40">KPI service</text>
+          <text class="d-label" x="14" y="58">Central metric defs, lineage</text>
+          <text class="d-title" x="14" y="82">Forecasting</text>
+          <text class="d-label" x="14" y="98">Baseline + ML, time-split eval</text>
+          <text class="d-title" x="14" y="118">Anomaly detection</text>
+        </g>
+
+        <g transform="translate(345,244)">
+          <rect class="d-ai-bg" x="0" y="0" width="270" height="130" rx="10"/>
+          <text class="d-tag" x="14" y="20" fill="var(--c-violet)">AI Orchestration</text>
+          <text class="d-title" x="14" y="40">Supervisor agent</text>
+          <text class="d-label" x="14" y="58">Intent · scope · budgets</text>
+          <text class="d-title" x="14" y="82">Specialist agents</text>
+          <text class="d-label" x="14" y="98">Store · Workforce · Anomaly · Advisor · Briefing</text>
+          <text class="d-title" x="14" y="120">Tool gateway (typed · allowlisted)</text>
+        </g>
+
+        <g transform="translate(650,244)">
+          <rect class="d-gov-bg" x="0" y="0" width="270" height="130" rx="10"/>
+          <text class="d-tag" x="14" y="20" fill="var(--c-pink)">Governance &amp; Audit</text>
+          <text class="d-title" x="14" y="40">Model &amp; prompt registry</text>
+          <text class="d-label" x="14" y="58">Versions · evaluations · cards</text>
+          <text class="d-title" x="14" y="82">Approval workflow</text>
+          <text class="d-label" x="14" y="98">Human review · outcomes</text>
+          <text class="d-title" x="14" y="118">Run &amp; tool audit trace</text>
+        </g>
+
+        <path class="d-arrow" d="M 175 218 L 175 244" marker-end="url(#arr)"/>
+        <path class="d-arrow" d="M 480 218 L 480 244" marker-end="url(#arr)"/>
+        <path class="d-arrow" d="M 785 218 L 785 244" marker-end="url(#arr)"/>
+
+        <path class="d-arrow" d="M 480 374 L 480 404" marker-end="url(#arr)"/>
+
+        <!-- MCP -->
+        <g transform="translate(650,400)">
+          <rect class="d-ai-bg" x="0" y="0" width="270" height="56" rx="10"/>
+          <text class="d-tag" x="14" y="20" fill="var(--c-violet)">External · MCP adapter</text>
+          <text class="d-title" x="14" y="40">Labor Rate Reference Server</text>
+          <text class="d-label" x="14" y="54">Read-only · versioned · scoped</text>
+        </g>
+        <path class="d-arrow" d="M 615 310 C 680 310, 760 360, 760 400" marker-end="url(#arr)"/>
+
+        <!-- DATA LAYER -->
+        <g transform="translate(40,404)">
+          <rect class="d-data-bg" x="0" y="0" width="575" height="56" rx="10"/>
+          <text class="d-tag" x="14" y="20" fill="var(--c-amber)">Data Layer</text>
+          <text class="d-title" x="14" y="40">PostgreSQL · Ingestion · Pandera validation · Lineage · Quarantine</text>
+          <text class="d-label" x="14" y="54">Data contracts (versioned) · freshness checks · reconciliation</text>
+        </g>
+
+        <!-- OBS -->
+        <g transform="translate(40,484)">
+          <rect class="d-node-bg" x="0" y="0" width="880" height="42" rx="10"/>
+          <text class="d-tag" x="14" y="20">Observability · OpenTelemetry · Prometheus · Grafana · Structured JSON logs</text>
+          <text class="d-label" x="14" y="36">Request/model/agent traces · cost &amp; latency budgets · drift &amp; data-quality dashboards</text>
+        </g>
+
+        <defs>
+          <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--muted)"/>
+          </marker>
+        </defs>
+      </svg>
+    </div>
+    <div class="diagram-legend">
+      <div class="legend-item"><span class="legend-swatch" style="background:rgba(34, 211, 238, 0.12); border:1px solid var(--c-cyan);"></span>User &amp; access</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:var(--bg-elev-2); border:1px solid var(--border-strong);"></span>Application / analytics</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:rgba(139, 92, 246, 0.14); border:1px solid var(--c-violet);"></span>AI runtime (trust boundary)</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:rgba(245, 158, 11, 0.12); border:1px solid var(--c-amber);"></span>Data &amp; validation</div>
+      <div class="legend-item"><span class="legend-swatch" style="background:rgba(236, 72, 153, 0.08); border:1px dashed var(--c-pink);"></span>Governance control</div>
+    </div>
+  </section>
+
+  <!-- AGENT WORKFLOW -->
+  <section>
+    <div class="eyebrow"><span class="enum">04</span> Agentic Workflow</div>
+    <h2 class="section-h">Agents retrieve. <em>Humans decide.</em></h2>
+    <p class="section-intro">
+      No agent touches the database directly. The supervisor classifies intent, allocates a step and token budget, and dispatches
+      specialists that can only call allowlisted, typed tools. Output is schema-validated and evidence-checked before a human reviewer sees it.
+    </p>
+
+    <div class="flow-wrap" aria-label="Agentic investigation workflow">
+      <svg viewBox="0 0 900 380" role="img">
+        <title>Agent workflow</title>
+
+        <g transform="translate(20,20)">
+          <rect class="d-user-bg" x="0" y="0" width="160" height="48" rx="10"/>
+          <text class="d-title" x="14" y="22">User request</text>
+          <text class="d-label" x="14" y="40">"Why did Store 42 miss target?"</text>
+        </g>
+        <path class="d-arrow" d="M 180 44 L 215 44" marker-end="url(#arr2)"/>
+
+        <g transform="translate(220,20)">
+          <rect class="d-node-bg" x="0" y="0" width="140" height="48" rx="10"/>
+          <text class="d-title" x="14" y="22">AuthN / AuthZ</text>
+          <text class="d-label" x="14" y="40">Scope + policy</text>
+        </g>
+        <path class="d-arrow" d="M 360 44 L 395 44" marker-end="url(#arr2)"/>
+
+        <g transform="translate(400,10)">
+          <rect class="d-ai-bg" x="0" y="0" width="180" height="68" rx="10"/>
+          <text class="d-tag" x="14" y="18" fill="var(--c-violet)">Supervisor</text>
+          <text class="d-title" x="14" y="38">Classify &amp; bound</text>
+          <text class="d-label" x="14" y="56">Intent · steps · tokens · timeout</text>
+        </g>
+        <path class="d-arrow" d="M 490 78 L 490 100" marker-end="url(#arr2)"/>
+
+        <g transform="translate(60,110)">
+          <rect class="d-ai-bg" x="0" y="0" width="170" height="60" rx="10"/>
+          <text class="d-tag" x="12" y="18" fill="var(--c-violet)">Specialist</text>
+          <text class="d-title" x="12" y="38">Store Perf. Analyst</text>
+          <text class="d-label" x="12" y="54">KPIs · comparisons</text>
+        </g>
+        <g transform="translate(250,110)">
+          <rect class="d-ai-bg" x="0" y="0" width="170" height="60" rx="10"/>
+          <text class="d-tag" x="12" y="18" fill="var(--c-violet)">Specialist</text>
+          <text class="d-title" x="12" y="38">Workforce Analyst</text>
+          <text class="d-label" x="12" y="54">Demand · coverage gaps</text>
+        </g>
+        <g transform="translate(440,110)">
+          <rect class="d-ai-bg" x="0" y="0" width="170" height="60" rx="10"/>
+          <text class="d-tag" x="12" y="18" fill="var(--c-violet)">Specialist</text>
+          <text class="d-title" x="12" y="38">Anomaly Investigator</text>
+          <text class="d-label" x="12" y="54">Evidence · hypotheses</text>
+        </g>
+        <g transform="translate(630,110)">
+          <rect class="d-ai-bg" x="0" y="0" width="170" height="60" rx="10"/>
+          <text class="d-tag" x="12" y="18" fill="var(--c-violet)">Specialist</text>
+          <text class="d-title" x="12" y="38">Operations Advisor</text>
+          <text class="d-label" x="12" y="54">Recommendations</text>
+        </g>
+
+        <path class="d-arrow" d="M 490 78 L 145 110" marker-end="url(#arr2)" opacity="0.5"/>
+        <path class="d-arrow" d="M 490 78 L 335 110" marker-end="url(#arr2)" opacity="0.5"/>
+        <path class="d-arrow" d="M 490 78 L 525 110" marker-end="url(#arr2)" opacity="0.7"/>
+        <path class="d-arrow" d="M 540 78 L 715 110" marker-end="url(#arr2)" opacity="0.5"/>
+
+        <g transform="translate(60,200)">
+          <rect class="d-node-bg" x="0" y="0" width="740" height="56" rx="10" stroke="var(--c-violet)" stroke-dasharray="4 3"/>
+          <text class="d-tag" x="14" y="20" fill="var(--c-violet)">Typed Tool Gateway · allowlisted · schema-validated · read-only by default</text>
+          <text class="d-label" x="14" y="40">metrics.query &nbsp; · &nbsp; forecast.get &nbsp; · &nbsp; anomaly.detail &nbsp; · &nbsp; mcp.labor_rate.get &nbsp; · &nbsp; evidence.compare</text>
+        </g>
+        <path class="d-arrow" d="M 145 170 L 145 200" marker-end="url(#arr2)"/>
+        <path class="d-arrow" d="M 335 170 L 335 200" marker-end="url(#arr2)"/>
+        <path class="d-arrow" d="M 525 170 L 525 200" marker-end="url(#arr2)"/>
+        <path class="d-arrow" d="M 715 170 L 715 200" marker-end="url(#arr2)"/>
+
+        <g transform="translate(60,278)">
+          <rect class="d-data-bg" x="0" y="0" width="360" height="42" rx="10"/>
+          <text class="d-title" x="14" y="20">Analytics · Forecast · Anomaly services</text>
+          <text class="d-label" x="14" y="36">Deterministic. Reads validated datasets only.</text>
+        </g>
+        <g transform="translate(440,278)">
+          <rect class="d-ai-bg" x="0" y="0" width="360" height="42" rx="10"/>
+          <text class="d-title" x="14" y="20">MCP · Labor Rate Reference</text>
+          <text class="d-label" x="14" y="36">Read-only · versioned · region-scoped</text>
+        </g>
+        <path class="d-arrow" d="M 240 256 L 240 278" marker-end="url(#arr2)"/>
+        <path class="d-arrow" d="M 620 256 L 620 278" marker-end="url(#arr2)"/>
+
+        <g transform="translate(220,340)">
+          <rect class="d-user-bg" x="0" y="0" width="460" height="30" rx="10"/>
+          <text class="d-title" x="14" y="20">Evidence validation → Human review → Audit record</text>
+        </g>
+        <path class="d-arrow" d="M 450 320 L 450 340" marker-end="url(#arr2)"/>
+
+        <defs>
+          <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="var(--muted)"/>
+          </marker>
+        </defs>
+      </svg>
+    </div>
+  </section>
+
+  <!-- SCOPE -->
+  <section>
+    <div class="eyebrow"><span class="enum">05</span> Scope</div>
+    <h2 class="section-h">What's in v0.1, and what comes next.</h2>
+    <p class="section-intro">
+      This prototype communicates the shape of the system. The working milestones (domain &amp; data → API &amp; analytics →
+      forecasting &amp; anomalies → agentic workflows → frontend → governance → hardening) follow the plan in <code class="inline">docs/IMPLEMENTATION_PLAN.md</code>.
+    </p>
+    <div class="scope-split">
+      <div class="scope-col v1">
+        <h3>v0.1 · This prototype</h3>
+        <span class="scope-sub">Delivered now</span>
+        <ul>
+          <li><span class="bullet"></span>Problem framing and target users</li>
+          <li><span class="bullet"></span>Solution shape and capability map</li>
+          <li><span class="bullet"></span>System architecture diagram</li>
+          <li><span class="bullet"></span>Agentic workflow diagram with trust boundaries</li>
+          <li><span class="bullet"></span>Governance, security, and AI-safety principles</li>
+          <li><span class="bullet"></span>Repository layout and milestone plan (in docs)</li>
+        </ul>
+      </div>
+      <div class="scope-col future">
+        <h3>Next milestones</h3>
+        <span class="scope-sub">Working software, in order</span>
+        <ul>
+          <li><span class="bullet"></span>Deterministic synthetic data generator · 30+ stores, 12+ months</li>
+          <li><span class="bullet"></span>Postgres schema, Pandera validation, KPI service</li>
+          <li><span class="bullet"></span>FastAPI endpoints &amp; React regional/store views</li>
+          <li><span class="bullet"></span>Baseline + ML workforce forecast with WAPE evaluation</li>
+          <li><span class="bullet"></span>Anomaly detection &amp; evidence records</li>
+          <li><span class="bullet"></span>Supervisor + specialist agents &amp; typed tool gateway</li>
+          <li><span class="bullet"></span>Local MCP labor-rate server &amp; adapter</li>
+          <li><span class="bullet"></span>Human review queue, audit trail, OWASP + governance mapping</li>
+        </ul>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRINCIPLES -->
+  <section>
+    <div class="eyebrow"><span class="enum">06</span> Guardrails</div>
+    <h2 class="section-h">Principles that shape every build decision.</h2>
+    <p class="section-intro">
+      These are not aspirations. They are tests the implementation must pass at each milestone — and they constrain
+      what the agents are even capable of doing.
+    </p>
+    <div class="principles">
+      <div class="principle">
+        <div class="pnum">01</div>
+        <h4>Deterministic where it counts</h4>
+        <p>SQL, KPI math, and validation are code — not LLM calls. LLMs summarize verified evidence, never invent calculations.</p>
+      </div>
+      <div class="principle">
+        <div class="pnum">02</div>
+        <h4>Evidence or silence</h4>
+        <p>Every finding cites the metric, window, and source. If evidence is insufficient, the system says so instead of guessing.</p>
+      </div>
+      <div class="principle">
+        <div class="pnum">03</div>
+        <h4>Read-only by default</h4>
+        <p>No schedule, employee, or payroll mutation in v1. Recommendations are proposals routed to a human reviewer.</p>
+      </div>
+      <div class="principle">
+        <div class="pnum">04</div>
+        <h4>Least-privilege tools</h4>
+        <p>Agents reach the world only through a typed, allowlisted gateway. Tool descriptions aren't security — authorization is.</p>
+      </div>
+      <div class="principle">
+        <div class="pnum">05</div>
+        <h4>Responsible workforce AI</h4>
+        <p>No individual employee scoring, ranking, or surveillance. Forecasts estimate workload, not punish people.</p>
+      </div>
+      <div class="principle">
+        <div class="pnum">06</div>
+        <h4>Honest status</h4>
+        <p>Synthetic data is labeled synthetic. Opportunity estimates are labeled estimates. Compliance claims require independent assessment.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- STACK -->
+  <section>
+    <div class="eyebrow"><span class="enum">07</span> Stack</div>
+    <h2 class="section-h">Boring, maintained, pinned.</h2>
+    <p class="section-intro">
+      Chosen for support and security over novelty. Versions are pinned; additions require a note in <code class="inline">docs/DECISIONS.md</code> with purpose and alternatives.
+    </p>
+    <div class="stack-grid">
+      <div class="stack-cell"><span class="label">Frontend</span><span class="value">React + TypeScript + Vite</span></div>
+      <div class="stack-cell"><span class="label">Charts</span><span class="value">Plotly</span></div>
+      <div class="stack-cell"><span class="label">Backend</span><span class="value">FastAPI + Pydantic</span></div>
+      <div class="stack-cell"><span class="label">Data store</span><span class="value">PostgreSQL</span></div>
+      <div class="stack-cell"><span class="label">Validation</span><span class="value">Pandera</span></div>
+      <div class="stack-cell"><span class="label">ML</span><span class="value">scikit-learn, XGBoost</span></div>
+      <div class="stack-cell"><span class="label">Agents</span><span class="value">LangGraph (bounded)</span></div>
+      <div class="stack-cell"><span class="label">MCP</span><span class="value">Official Python SDK</span></div>
+      <div class="stack-cell"><span class="label">Observability</span><span class="value">OpenTelemetry · Prom · Grafana</span></div>
+      <div class="stack-cell"><span class="label">Testing</span><span class="value">pytest · Playwright · Vitest</span></div>
+      <div class="stack-cell"><span class="label">Runtime</span><span class="value">Docker Compose</span></div>
+      <div class="stack-cell"><span class="label">CI</span><span class="value">GitHub Actions</span></div>
+    </div>
+  </section>
+
+  <footer>
+    <div>StorePulse-AI · v0.1 prototype · synthetic data only</div>
+    <div>Decision support, not autonomous operation.</div>
+  </footer>
+</div>
+
+<script>
+  (function () {
+    var btn = document.getElementById('themeBtn');
+    if (!btn) return;
+    var root = document.documentElement;
+    try {
+      var saved = localStorage.getItem('sp_theme');
+      if (saved === 'dark' || saved === 'light') root.setAttribute('data-theme', saved);
+    } catch (e) {}
+    btn.addEventListener('click', function () {
+      var current = root.getAttribute('data-theme');
+      var isDark;
+      if (current === 'dark') isDark = false;
+      else if (current === 'light') isDark = true;
+      else isDark = !window.matchMedia('(prefers-color-scheme: dark)').matches;
+      var next = isDark ? 'dark' : 'light';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem('sp_theme', next); } catch (e) {}
+    });
+  })();
+</script>
+</body>
+</html>

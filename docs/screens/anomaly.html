@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Investigation · StorePulse-AI</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="styles.css">
+<style>
+  .agent-trace {
+    display: grid;
+    grid-template-columns: 28px 1fr;
+    gap: 14px;
+    padding: 10px 0;
+    font-size: 13px;
+    border-bottom: 1px dashed var(--rule);
+  }
+  .agent-trace:last-child { border-bottom: 0; }
+  .agent-trace .time {
+    font-family: var(--f-mono);
+    font-size: 10px;
+    color: var(--muted);
+  }
+  .agent-trace .who {
+    font-family: var(--f-mono);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--teal);
+    margin-right: 10px;
+  }
+  .agent-trace .who.tool { color: var(--accent); }
+  .agent-trace .who.sys { color: var(--muted); }
+  .agent-trace p { margin: 2px 0 0; color: var(--ink-soft); font-size: 12.5px; }
+  .rec-card {
+    padding: 22px;
+    background: var(--teal-soft);
+    border: 1px solid var(--teal);
+  }
+  .rec-card h3 {
+    font-family: var(--f-display);
+    font-weight: 500;
+    font-size: 20px;
+    letter-spacing: -0.005em;
+    margin: 0 0 6px;
+  }
+  .rec-meta {
+    display: flex;
+    gap: 14px;
+    font-family: var(--f-mono);
+    font-size: 10.5px;
+    color: var(--muted);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .rec-card ul { margin: 12px 0; padding-left: 18px; font-size: 13.5px; color: var(--ink); }
+  .rec-card ul li { margin-bottom: 4px; }
+  .rec-actions { display: flex; gap: 10px; margin-top: 18px; flex-wrap: wrap; align-items: center; }
+  .rec-note { font-size: 12px; color: var(--muted); font-style: italic; }
+  .alt-note {
+    padding: 14px;
+    background: var(--amber-soft);
+    border-left: 3px solid var(--amber);
+    font-size: 13px;
+    color: var(--ink);
+    margin-top: 14px;
+  }
+  .alt-note strong { font-family: var(--f-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--amber); display: block; margin-bottom: 4px; }
+</style>
+</head>
+<body>
+
+<svg hidden xmlns="http://www.w3.org/2000/svg"><defs>
+<symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+<symbol id="i-store" viewBox="0 0 24 24"><path d="M3 9l1-5h16l1 5"/><path d="M4 9v11h16V9"/><path d="M9 14h6"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+<symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"/><path d="M19 14l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></symbol>
+<symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-layers" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></symbol>
+<symbol id="i-pulse" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
+<symbol id="i-target" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/><line x1="3" y1="20" x2="21" y2="20"/></symbol>
+<symbol id="i-clipboard" viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M8 11h8M8 15h8"/></symbol>
+<symbol id="i-cpu" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></symbol>
+<symbol id="i-flag" viewBox="0 0 24 24"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></symbol>
+<symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.74V17h8v-2.26A7 7 0 0 0 12 2z"/></symbol>
+<symbol id="i-arrow-right" viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></symbol>
+<symbol id="i-msg" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></symbol>
+<symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></symbol>
+<symbol id="i-dollar" viewBox="0 0 24 24"><line x1="12" y1="2" x2="12" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+</defs></svg>
+
+<nav class="topnav">
+  <a href="index.html" class="nav-brand">
+    <svg class="nav-mark" viewBox="0 0 28 28" aria-hidden="true">
+      <rect x="2" y="12" width="4" height="12" fill="var(--teal)"/>
+      <rect x="8" y="7" width="4" height="17" fill="var(--accent)"/>
+      <rect x="14" y="10" width="4" height="14" fill="var(--teal)"/>
+      <rect x="20" y="4" width="4" height="20" fill="var(--accent)"/>
+    </svg>
+    StorePulse<em>·</em>AI
+  </a>
+  <div class="nav-links">
+    <a href="index.html" class="nav-link"><svg class="ico"><use href="#i-grid"/></svg>Demo</a>
+    <a href="regional.html" class="nav-link"><svg class="ico"><use href="#i-layers"/></svg>Regional</a>
+    <a href="store.html" class="nav-link"><svg class="ico"><use href="#i-store"/></svg>Store</a>
+    <a href="anomaly.html" class="nav-link active"><svg class="ico"><use href="#i-search"/></svg>Investigate</a>
+    <a href="workforce.html" class="nav-link"><svg class="ico"><use href="#i-users"/></svg>Workforce</a>
+    <a href="briefing.html" class="nav-link"><svg class="ico"><use href="#i-sun"/></svg>Briefing</a>
+  </div>
+  <div class="nav-user">
+    <div class="who"><strong>Alex Chen</strong>Regional · Chicago</div>
+    <div class="avatar">AC</div>
+    <button class="theme-btn" id="themeBtn"><svg class="ico"><use href="#i-sun"/></svg>Theme</button>
+  </div>
+</nav>
+
+<div class="wrap">
+  <div class="page-head">
+    <div>
+      <div class="page-eyebrow">Screen 03 · Investigation · <a href="store.html" style="color:var(--teal); text-decoration:none;">← Store #042</a></div>
+      <h1 class="page-title">Why did <em>Electronics</em> miss on Tuesday?</h1>
+      <div class="page-sub">ANOM-2026-1103-042-C · Conversion rate dropped 23pp vs 30-day baseline during 10am–2pm.</div>
+    </div>
+    <div class="page-meta">
+      <span class="ai-badge"><svg class="ico"><use href="#i-sparkles"/></svg>AI-assisted</span><br>
+      <strong>Model</strong> sp-investigator@v0.3.1<br>
+      <strong>Run</strong> 8m 42s · 14 tool calls
+    </div>
+  </div>
+
+  <div class="problem-banner">
+    <span class="tag"><svg class="ico"><use href="#i-bulb"/></svg>Problem this solves</span>
+    <p><strong>Late signals and opaque root-cause.</strong> Instead of a manager calling 4 people to piece a story together, the system runs a bounded investigation: retrieves validated metrics, ranks potential factors, cites sources, and surfaces alternative explanations before any recommendation.</p>
+  </div>
+
+  <div class="split">
+    <div>
+      <div class="panel">
+        <div class="panel-head">
+          <h2 class="panel-h"><svg class="ico"><use href="#i-pulse"/></svg>Observed vs baseline</h2>
+          <div class="panel-sub">Conversion rate · Electronics · hourly</div>
+        </div>
+        <svg class="chart" viewBox="0 0 640 240">
+          <line class="axis" x1="40" y1="200" x2="620" y2="200"/>
+          <g class="grid">
+            <line x1="40" y1="160" x2="620" y2="160"/>
+            <line x1="40" y1="120" x2="620" y2="120"/>
+            <line x1="40" y1="80" x2="620" y2="80"/>
+            <line x1="40" y1="40" x2="620" y2="40"/>
+          </g>
+          <!-- Baseline band (30-day avg ± 1σ) -->
+          <path d="M 40,78 L 100,75 L 160,68 L 220,55 L 280,52 L 340,54 L 400,58 L 460,66 L 520,72 L 580,88 L 620,96 L 620,120 L 580,112 L 520,96 L 460,88 L 400,80 L 340,76 L 280,74 L 220,78 L 160,92 L 100,100 L 40,104 Z"
+            fill="var(--accent)" opacity="0.14"/>
+          <!-- Baseline median line -->
+          <polyline fill="none" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="3 3"
+            points="40,91 100,87 160,80 220,66 280,63 340,65 400,69 460,77 520,84 580,100 620,108"/>
+          <!-- Observed -->
+          <polyline fill="none" stroke="var(--critical)" stroke-width="2.5"
+            points="40,92 100,88 160,85 220,135 280,145 340,152 400,148 460,118 520,86 580,102 620,110"/>
+          <!-- Anomaly window shade -->
+          <rect x="220" y="30" width="180" height="170" fill="var(--critical)" opacity="0.08"/>
+          <text x="310" y="22" text-anchor="middle" fill="var(--critical)" font-weight="500">Anomaly window · 10am–2pm</text>
+          <!-- Y labels -->
+          <text x="36" y="43" text-anchor="end">70%</text>
+          <text x="36" y="83" text-anchor="end">55%</text>
+          <text x="36" y="123" text-anchor="end">40%</text>
+          <text x="36" y="163" text-anchor="end">25%</text>
+          <!-- X labels -->
+          <text x="40" y="220" text-anchor="start">8am</text>
+          <text x="160" y="220" text-anchor="middle">10am</text>
+          <text x="310" y="220" text-anchor="middle">12pm</text>
+          <text x="460" y="220" text-anchor="middle">2pm</text>
+          <text x="620" y="220" text-anchor="end">8pm</text>
+          <!-- Legend -->
+          <g transform="translate(40,232)">
+            <line x1="0" y1="0" x2="18" y2="0" stroke="var(--accent)" stroke-width="1.5" stroke-dasharray="3 3"/>
+            <text x="22" y="3" fill="var(--muted)">30-day baseline</text>
+            <line x1="130" y1="0" x2="148" y2="0" stroke="var(--critical)" stroke-width="2.5"/>
+            <text x="152" y="3" fill="var(--muted)">Observed · Nov 3</text>
+          </g>
+        </svg>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2 class="panel-h"><svg class="ico teal"><use href="#i-clipboard"/></svg>Ranked contributing factors</h2>
+          <div class="panel-sub">Agent output · schema-validated · evidence-linked</div>
+        </div>
+        <ul class="evidence-list">
+          <li>
+            <span class="rank">01</span>
+            <div class="body">
+              <h4>POS terminal error rate spiked 3.2× normal at Register 4</h4>
+              <p>Between 10:14 and 13:42, Register 4 logged <strong>184 declined-transaction events</strong> (baseline Tue: 57). Associated customers abandoned <strong>62%</strong> of the time based on matched footfall-to-txn trails.</p>
+              <span class="cite">evidence · pos_terminal_events(store=42, reg=4, 2026-11-03 10:00–14:00) · metrics.decline_rate_by_register</span>
+            </div>
+            <div class="conf">
+              <span class="bar" style="--w: 88%;"></span>CONF · 0.88
+            </div>
+          </li>
+          <li>
+            <span class="rank">02</span>
+            <div class="body">
+              <h4>Electronics coverage down 2 associates vs forecasted demand</h4>
+              <p>Scheduled: 4 FTE · Forecast demand for the slot: <strong>5.8 FTE</strong>. One call-out at 09:50 was not backfilled. Avg customer wait at help desk: <strong>6m 12s</strong> (baseline 2m 08s).</p>
+              <span class="cite">evidence · workforce.schedule_actual · workforce.forecast@v2.1 · customer_wait_sensor</span>
+            </div>
+            <div class="conf">
+              <span class="bar" style="--w: 74%;"></span>CONF · 0.74
+            </div>
+          </li>
+          <li>
+            <span class="rank">03</span>
+            <div class="body">
+              <h4>No promotional events to explain baseline deviation</h4>
+              <p>No competitor promotion detected within 2 miles · no store-local marketing active · weather within seasonal norm · no holiday adjacency. External factors do <strong>not</strong> explain the gap.</p>
+              <span class="cite">evidence · promo_calendar · weather_svc · event_calendar · competitive_feed</span>
+            </div>
+            <div class="conf">
+              <span class="bar" style="--w: 65%;"></span>CONF · 0.65
+            </div>
+          </li>
+        </ul>
+        <div class="alt-note">
+          <strong>Alternative explanations considered</strong>
+          Inventory stock-out on top-10 Electronics SKUs: <strong>ruled out</strong> (availability 94% for the window). Apparel bleed-over: considered but insufficient evidence to establish causal link — correlation not established.
+        </div>
+      </div>
+    </div>
+
+    <div>
+      <div class="rec-card">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:10px;">
+          <span class="pill ai"><span class="dot"></span>Recommendation · pending review</span>
+          <span style="font-family:var(--f-mono); font-size:10px; color:var(--muted);">REC-5518</span>
+        </div>
+        <h3>Service Register 4 and re-plan Electronics coverage</h3>
+        <div class="rec-meta">
+          <span>Owner · Store #042</span>
+          <span>Reviewer · Alex Chen</span>
+          <span>Due · Nov 7</span>
+        </div>
+        <p style="margin:0; color:var(--ink); font-size:14px;">Two parallel actions, both reversible, both within store manager authority:</p>
+        <ul>
+          <li>Open a service ticket for Register 4 — pull from active rotation until diagnostics clear.</li>
+          <li>Review the Tue 10am–2pm Electronics coverage pattern. Forecast shows a recurring +1.8 FTE gap for this slot.</li>
+        </ul>
+        <div style="padding: 10px 0; border-top: 1px solid var(--teal); border-bottom: 1px solid var(--teal); margin: 12px 0; font-size:12.5px;">
+          <div style="display:flex; justify-content:space-between; margin:4px 0;"><span style="color:var(--muted); font-family:var(--f-mono); font-size:10px; text-transform:uppercase; letter-spacing:0.1em;">Expected direction</span><span style="color:var(--good); font-weight:500;">Conversion rate recovery</span></div>
+          <div style="display:flex; justify-content:space-between; margin:4px 0;"><span style="color:var(--muted); font-family:var(--f-mono); font-size:10px; text-transform:uppercase; letter-spacing:0.1em;">Confidence</span><span>0.82</span></div>
+          <div style="display:flex; justify-content:space-between; margin:4px 0;"><span style="color:var(--muted); font-family:var(--f-mono); font-size:10px; text-transform:uppercase; letter-spacing:0.1em;">Risk</span><span>Low · reversible</span></div>
+        </div>
+        <div class="rec-note">
+          Assumptions: labor rate reference <code style="font-family:var(--f-mono); color:var(--ink);">mcp.labor_rate@v2026.10</code> · no promo activity scheduled. No employee is named in this recommendation.
+        </div>
+        <div class="rec-actions">
+          <button class="btn good"><svg class="ico"><use href="#i-check"/></svg>Approve</button>
+          <button class="btn crit"><svg class="ico"><use href="#i-x"/></svg>Reject</button>
+          <button class="btn ghost"><svg class="ico"><use href="#i-eye"/></svg>Ask for evidence</button>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:24px;">
+        <div class="panel-head">
+          <h2 class="panel-h"><svg class="ico teal"><use href="#i-cpu"/></svg>Agent run trace</h2>
+          <div class="panel-sub">Audited · 8m 42s</div>
+        </div>
+        <div class="agent-trace">
+          <span class="time">00:00</span>
+          <div>
+            <span class="who sys">Supervisor</span>
+            Intent · <code style="font-family:var(--f-mono); font-size:12px;">investigate_anomaly(store=42, anom_id=1103-042-C)</code> · scope verified · budget 10 steps / 90s / $0.35
+            <p>Authorization: Alex Chen ∈ region:chicago. Store 42 ∈ scope. ✓</p>
+          </div>
+        </div>
+        <div class="agent-trace">
+          <span class="time">00:04</span>
+          <div>
+            <span class="who">Anomaly Investigator</span>
+            Retrieve anomaly detail + 30-day comparison window
+            <p>Tools · <code style="font-family:var(--f-mono); font-size:12px;">anomaly.detail</code> · <code style="font-family:var(--f-mono); font-size:12px;">metrics.query</code> (read-only)</p>
+          </div>
+        </div>
+        <div class="agent-trace">
+          <span class="time">00:28</span>
+          <div>
+            <span class="who tool">Tool · metrics.query</span>
+            conversion_rate · hourly · store=42 · dept=electronics · window=30d
+            <p>Returned 720 rows · data-quality · freshness 94m · all validations passed</p>
+          </div>
+        </div>
+        <div class="agent-trace">
+          <span class="time">01:12</span>
+          <div>
+            <span class="who">Store Performance Analyst</span>
+            Decompose: footfall vs transactions vs ATV
+            <p>Finding: footfall normal (−2.1%), txns −22% → conversion-side, not demand-side</p>
+          </div>
+        </div>
+        <div class="agent-trace">
+          <span class="time">02:41</span>
+          <div>
+            <span class="who tool">Tool · pos_terminal_events</span>
+            store=42 · 2026-11-03 10:00–14:00 (read-only)
+            <p>Register 4 declines 3.2× baseline · evidence captured</p>
+          </div>
+        </div>
+        <div class="agent-trace">
+          <span class="time">05:03</span>
+          <div>
+            <span class="who">Workforce Analyst</span>
+            Compare scheduled vs forecast demand for window
+            <p>Coverage −2 FTE vs forecast · schedule plan @v2026.44</p>
+          </div>
+        </div>
+        <div class="agent-trace">
+          <span class="time">07:48</span>
+          <div>
+            <span class="who">Operations Advisor</span>
+            Draft recommendation · validate against policy (no autonomous action · no employee-level claim)
+            <p>Output schema validated · evidence references complete · routed to human review</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div>Synthetic data · demo scenario</div>
+    <div>Every agent call · tool invocation · and decision persisted to <code style="font-family:var(--f-mono);">audit.events</code></div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var btn = document.getElementById('themeBtn');
+    if (!btn) return;
+    var root = document.documentElement;
+    try { var s = localStorage.getItem('sp_theme'); if (s === 'dark' || s === 'light') root.setAttribute('data-theme', s); } catch (e) {}
+    function syncIcon() {
+      var cur = root.getAttribute('data-theme');
+      var isDark = cur === 'dark' || (cur !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      var use = btn.querySelector('use');
+      if (use) use.setAttribute('href', isDark ? '#i-sun' : '#i-moon');
+    }
+    syncIcon();
+    btn.addEventListener('click', function () {
+      var cur = root.getAttribute('data-theme');
+      var isDark = cur === 'dark' ? false : (cur === 'light' ? true : !window.matchMedia('(prefers-color-scheme: dark)').matches);
+      var next = isDark ? 'dark' : 'light';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem('sp_theme', next); } catch (e) {}
+      syncIcon();
+    });
+  })();
+</script>
+</body>
+</html>
