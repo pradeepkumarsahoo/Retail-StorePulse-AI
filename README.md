@@ -22,6 +22,7 @@
    - [System diagram](#system-architecture)
    - [Agentic architecture](#agentic-architecture)
    - [Data flow](#data-flow)
+   - [End-to-end project flow](#end-to-end-project-flow)
 5. [Security posture (OWASP-aligned)](#5-security-posture-owasp-aligned)
 6. [Observability, logging & monitoring](#6-observability-logging--monitoring)
 7. [Human-in-the-loop approval workflow](#7-human-in-the-loop-approval-workflow)
@@ -184,6 +185,86 @@ Every KPI response carries a **lineage** block so the number is defensible:
   "status": "ok"
 }
 ```
+
+### End-to-end project flow
+
+A single trip through the platform, from a cold clone to a reviewer approving a recommendation. Each step names the real file so the narrative is reconstructable in code.
+
+**Stage A · Offline data preparation** *(one-shot, deterministic)*
+
+1. **Generate synthetic facts.** [`scripts/generate_data.py`](scripts/generate_data.py) seeds `numpy.default_rng(seed)` and writes 5 stores × 90 days of sales, labor, and traffic CSVs under `data/synthetic/`, plus a `_SYNTHETIC_DATA.txt` marker and `SYNTHETIC_VERSION = "synthetic-v1"`. The same seed produces byte-identical output — tests depend on this.
+2. **Validate and load.** [`scripts/load_db.py`](scripts/load_db.py) resets the 12 tables in dependency order, then streams each CSV through [`packages/validation/schemas.py`](packages/validation/schemas.py) (Pandera, pinned 0.20.4). Clean rows land in the fact tables; bad rows land in `quarantine` with a `reason_code` and the raw payload — never dropped. Pandera runs **once at ingest**, never on the API hot path (ADR-0003).
+3. **Seed the catalogs.** The loader inserts 8 rows into `metric_catalog` (name, version, formula, source tables, assumptions) and 8 rows into `labor_rate` via the MCP server's `seed_rates()`. The metric catalog is the authority every KPI call checks its lineage envelope against.
+4. **Compute offline artefacts.** [`scripts/run_forecast.py`](scripts/run_forecast.py) trains the seasonal baseline (`seasonal_baseline_dow_hour_trimmed_mean v1.0.0`) on an 80% time split and writes `forecast_run` + `forecast` rows (never a random split). [`scripts/run_anomalies.py`](scripts/run_anomalies.py) runs the robust-z detector and writes `anomaly` rows with evidence. All four scripts are re-runnable; the pipeline is a function of the seed.
+
+**Stage B · Live request** *(a reviewer clicks "Investigate S001")*
+
+5. **Request lands at FastAPI.** `POST /api/v1/agents/investigate-store` hits [`apps/api/main.py`](apps/api/main.py). Two middlewares run first: a correlation middleware assigns/propagates `X-Correlation-Id` and binds it to the logging thread-local; a metrics middleware increments `http_requests_total{route,method,status}` and records latency into a histogram.
+6. **Authentication + scope.** [`apps/api/security.py`](apps/api/security.py) reads the bearer token, resolves it to a `Principal` (role + allowed regions/stores), then `ensure_store_access(principal, "S001")` fails closed if scope doesn't match. This is what defeats BOLA/BFLA in `tests/integration/test_api_kpis_and_security.py` — a West regional cannot read `S002` even by guessing the ID.
+7. **Supervisor opens a run.** [`packages/ai_orchestration/supervisor.py`](packages/ai_orchestration/supervisor.py) writes an `ai_run` row (`status=running`, correlation ID, prompt + model versions) and constructs a `RunBudget(max_steps=20, max_tokens=2000, timeout_s=20.0)`. If any budget is exceeded, the run is marked `aborted` and the partial evidence is preserved.
+
+**Stage C · Agents assemble evidence** *(specialists in sequence, each confined)*
+
+8. **`store_performance` runs first.** It asks the typed tool gateway ([`packages/tool_gateway/gateway.py`](packages/tool_gateway/gateway.py)) for `kpi.net_sales`, `kpi.atv`, `kpi.upt`, `kpi.conversion_rate` over the window. For **each** call the gateway does, in strict order:
+   - Allowlist check (ADR-0010 — is `store_performance` allowed to call this tool?),
+   - Scope check (does the principal have access to this store/region?),
+   - Pydantic input validation,
+   - Execute the KPI function from [`packages/analytics/kpi_service.py`](packages/analytics/kpi_service.py),
+   - Pydantic output validation,
+   - Write a `tool_call` row (tool name, args, status `ok`/`denied`/`error`, duration ms, correlation ID).
+9. **`workforce` runs next.** Calls `kpi.splh`, `kpi.labor_cost_pct`, `forecast.labor`, and `mcp.labor_rate.get`. The last one goes through [`services/labor_rate_mcp/server.py`](services/labor_rate_mcp/server.py) — an in-process MCP-shaped adapter (ADR-0008). Agents never call it directly; the gateway mediates, so swapping the transport to the MCP SDK in M7 is below the agent code.
+10. **`anomaly_investigator` runs if signals exist.** Calls `anomaly.list` + `anomaly.detail`, correlates with KPI drifts, and ranks hypotheses — always as correlation, never causation.
+11. **Every tool response carries lineage.** No endpoint returns a bare number. Each KPI result is wrapped in a lineage envelope (metric name, version, formula, window, source tables, row counts, assumptions, `synthetic_data: true`). This is what makes a reviewer able to defend a number six months later.
+
+**Stage D · The LLM composes narrative — without inventing**
+
+12. **Deterministic provider by default.** [`packages/ai_orchestration/llm_provider.py`](packages/ai_orchestration/llm_provider.py)'s `DeterministicProvider` takes the structured `evidence` dict the agents assembled and renders a human-readable summary **from a fixed template** (ADR-0007). There is no path for it to fabricate a figure, because it never generates — it substitutes. This is the exact property `tests/security/test_prompt_injection.py` relies on: a hostile user message cannot change the output, because the output is a template over structured evidence. Swapping in Anthropic/OpenAI/Bedrock is one line in `apps/api/dependencies.get_api_llm()`.
+13. **`operations_advisor` drafts the recommendation.** It composes title + rationale + proposed action from the upstream agents' output, then [`_policy_check`](packages/ai_orchestration/agents/operations_advisor.py) scans for forbidden language (ADR-0011): `cut hours`, `reduce hours`, `layoff`, `lower pay`, etc. On a match, the draft is rewritten to a safe "hold current plan" default and the violation is recorded. This is a belt-and-braces guard — even a future misbehaving LLM cannot leak unsafe wording into the approval queue.
+
+**Stage E · Human-in-the-loop** *(the hard stop before any operational change)*
+
+14. **Recommendation enters the queue.** The supervisor inserts a `recommendation` row in state `draft` → [`packages/governance/approval_workflow.py`](packages/governance/approval_workflow.py) advances it to `pending_review`. Both transitions write an `approval_event` (from, to, actor, comment) **and** an `audit_event` (append-only, correlation-ID stamped). The response returns `recommendation_id`, `state="pending_review"`, the evidence step count, the narrative, and the lineage envelopes.
+15. **Reviewer decides.** Someone opens `/approvals.html`, reads the evidence, and POSTs to `/api/v1/recommendations/{id}/approve` or `/reject`. The state machine (`ALLOWED_TRANSITIONS`) enforces that:
+    - only `platform_admin`, `regional_manager`, `ops_reviewer` can approve or reject,
+    - store managers can read recommendations for their store but cannot approve,
+    - `rejected` is terminal,
+    - any illegal transition raises `InvalidTransition` and writes nothing.
+16. **Execution is a human attestation in v1.0.** `approved → in_progress → completed` are state updates recording that a human carried out the action in the real operational system. The platform does **not** write to any POS, scheduler, or payroll system. Read-only / recommendation-only is the initial release contract, not a TODO.
+
+**Stage F · Observability runs through every step**
+
+17. **One JSON log line per event**, each stamped with the same correlation ID — HTTP request, each tool call, every state transition. [`packages/observability/logging.py`](packages/observability/logging.py) uses only stdlib (ADR-0012). A single investigate-store call produces a traceable chain roughly 15 lines long.
+18. **Metrics at `GET /metrics`.** Prometheus text exposition — counters for HTTP requests, agent runs by intent and status, tool calls by agent/tool/status, approval transitions; quantile summaries (p50/p90/p99) for HTTP and tool latency. Grafana is a config change in M6.
+19. **Audit is the primary record.** Every operational fact — who ran what, what the agent asked, what the tool returned, who approved — is reconstructable from `ai_run` + `tool_call` + `approval_event` + `audit_event` alone. If the UI vanished, the data story would still be whole.
+
+**Request → response, in one picture**
+
+```
+HTTP POST /api/v1/agents/investigate-store  { store_id:"S001", window_hours:72 }
+Authorization: Bearer demo-admin
+
+  1 · correlation mw        → X-Correlation-Id = c-9f2a...
+  2 · metrics mw            → http_requests_total{route=...}  ++
+  3 · auth + scope          → principal=platform_admin, scope ok
+  4 · supervisor opens run  → ai_run row  (status=running)
+  5 · store_performance     → 4 tool calls (net_sales, atv, upt, conversion)
+  6 · workforce             → 3 tool calls (splh, labor_cost_pct, mcp.labor_rate)
+  7 · anomaly_investigator  → 2 tool calls (anomaly.list, anomaly.detail)
+  8 · DeterministicProvider → narrative from evidence  (template, not generation)
+  9 · operations_advisor    → draft recommendation + policy check (passes)
+ 10 · workflow.transition   → draft → pending_review  (+ approval_event + audit_event)
+ 11 · supervisor closes run → ai_run (status=success, steps=13, duration=106ms)
+ 12 · response 200          → { recommendation_id, state:"pending_review", summary, lineage[] }
+
+Reviewer opens /approvals.html → POST /recommendations/{id}/approve
+  → approved → in_progress → completed   (each step: approval_event + audit_event)
+```
+
+**What the architecture refuses, by design**
+
+- No bare numbers. No invented facts. No unilateral action. No cross-scope reads. No global tool access. No individual-employee scoring, ranking, or surveillance. No unsafe action language. No chain-of-thought exposure. No secrets in code.
+
+Each refusal is enforced in code and covered by a test under `tests/security/` or `tests/integration/`.
 
 ---
 
