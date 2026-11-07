@@ -1,0 +1,2 @@
+StorePulse-AI synthetic dataset. Not real sales or staffing data.
+version=synthetic-v1 seed=42 days=90 start=2026-08-01

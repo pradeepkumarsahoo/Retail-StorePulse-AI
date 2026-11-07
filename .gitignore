@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+.env
+*.sqlite
+*.sqlite-journal
+data/synthetic/*.csv
+data/synthetic/*.parquet
+.pytest_cache/
+.coverage
+dist/
+build/
+*.egg-info/

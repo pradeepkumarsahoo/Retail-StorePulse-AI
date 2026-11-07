@@ -1,0 +1,1164 @@
+# Claude Code Master Build Prompt — StorePulse-AI
+
+> **Project name:** StorePulse-AI
+> **Repository:** `Retail-StorePulse-AI`  
+> **Product descriptor:** AI-Powered Store Operations, Workforce Intelligence & Decision Platform  
+> **Positioning:** An enterprise-grade retail decision-intelligence platform that helps multi-store retailers improve store performance, workforce productivity, 
+customer experience and operating efficiency through trusted analytics, predictive AI and governed agentic workflows.
+
+
+
+============
+
+Build first use case: Regional Command Center — Unified KPI Service
+This maps to Capability 01 (Analytics) in the architecture and is the first working milestone after the synthetic data generator. It's the simplest for four reasons:
+
+Why this one first
+
+Pure deterministic code — no LLMs, no agents, no human-review workflow, no MCP, no cameras, no external feeds. Just SQL, Pandera validation, and an API.
+Single source of truth everything else depends on. Forecasts, anomalies, agents, and briefings all read through the KPI service. Building it first means later capabilities have real numbers to consume instead of placeholders.
+No trust-boundary complexity. Guardrails 03 (read-only), 04 (least-privilege tools), and 05 (responsible workforce AI) don't apply yet — there are no agents to constrain.
+Shortest path to a demoable screen. The regional dashboard tiles in docs/screens/regional.html and docs/screens/store.html are already prototyped — you just back them with real queries.
+Minimum slice to ship
+
+Layer	What to build
+Data	Deterministic synthetic generator → 5 stores × 3 months of sales, labor, and footfall at hourly grain (not the full 30 stores × 12 months yet)
+Schema	Postgres tables for sales_txn, labor_hours, traffic_count, plus a metric_catalog seed
+Validation	Pandera schemas on ingest — fail loud, quarantine bad rows
+KPI service	One metric to end-to-end first: sales per labor hour (SPLH) — chosen because it names the exact problem card 05 ("KPIs that disagree across teams")
+API	GET /api/v1/kpi/splh?store_id=&from=&to= returning value + lineage (source rows, window, metric version)
+UI	One tile on the regional view wired to that endpoint
+What to defer
+Forecasting, anomalies, agents, MCP, truck tracking, weather, and camera sentiment all wait. They're more valuable after a trusted metric layer exists — otherwise they're built on sand.
+
+One trade-off to note
+Starting with the daily briefing feels tempting because it's the most "AI-looking" capability, but it's the integration of everything else and will stall without KPIs, forecasts, and anomalies underneath it. SPLH-first keeps you honest.
+
+=================================================
+
+---
+
+# 0. Your role and execution expectations
+
+Act as a complete senior product and engineering team:
+
+- Principal / Enterprise Architect
+- Retail domain product manager
+- Staff backend and frontend engineers
+- Data engineer and analytics engineer
+- ML engineer
+- AI / agentic systems engineer
+- Application security engineer
+- QA automation engineer
+- SRE / platform engineer
+- Technical writer
+
+Build **StorePulse-AI** end to end. Do not stop after producing a plan, mock-up, architecture document or a few disconnected screens. Inspect the repository, establish the implementation plan, then implement, test, document and validate the working product in small, reviewable stages.
+
+## Non-negotiable engineering rules
+
+1. Start by inspecting the existing repository, files, runtime, installed tools and current git status. Preserve useful existing work. Do not overwrite or delete user work without explaining why and obtaining approval.
+2. Create `docs/IMPLEMENTATION_PLAN.md` before substantial implementation. Break the work into milestones with acceptance criteria.
+3. Create and maintain `docs/DECISIONS.md` for significant architecture and technology decisions, including alternatives and trade-offs.
+4. Use clean architecture, clear domain boundaries, dependency inversion and modular design. Avoid a monolith of tightly coupled services and avoid premature microservices.
+5. Build a **modular monolith with independently testable modules** initially. Keep contracts and boundaries suitable for future service extraction.
+6. Prefer boring, supported, secure technologies. Pin dependencies and document version choices. Do not invent package APIs or claim integrations work unless they have been tested.
+7. Use typed contracts, input validation, structured errors, correlation IDs, structured logs and consistent API conventions.
+8. No hard-coded secrets, credentials, API keys, private endpoints or production personal data. Provide `.env.example` with placeholders only.
+9. Do not fabricate business results, model accuracy, labor savings, customer outcomes or benchmark claims. Label synthetic data and simulated results clearly.
+10. Do not use an LLM where deterministic code, SQL, a statistical model or a business rule is more reliable.
+11. All AI-generated findings and recommendations must cite the underlying metrics, records, time windows and calculation logic that support them. If evidence is insufficient, say so.
+12. Human approval is required before any action that changes schedules, employee assignments, pay assumptions, labor budgets or operational systems. The initial release is read-only / recommendation-only.
+13. Never expose chain-of-thought or private model reasoning. Return concise explanations, evidence, assumptions, confidence and limitations.
+14. Do not claim compliance or security certification. Implement controls, provide a control mapping and document what still requires independent assessment.
+15. Run relevant tests after each milestone. Fix failures before proceeding. Do not hide failing tests or skip tests silently.
+16. If a credential, external service or API is unavailable, provide a working local mock / adapter and document the limitation. Do not block the core application.
+17. Keep the README honest about what is implemented, simulated, optional or planned.
+18. At completion, provide exact setup commands, test commands, demo credentials if applicable (local-only), architecture explanation, known gaps and a concise implementation report.
+
+If a decision is ambiguous, choose a sensible, secure default, document it and continue. Ask the user only when a decision could cause destructive changes, incur cost, expose data or materially alter the product direction.
+
+---
+
+# 1. Product vision and business problem
+
+## 1.1 Business problem statement
+
+Large retailers operate hundreds or thousands of stores. Each store generates sales, transaction, inventory, footfall, workforce, scheduling, customer-service and operating-cost data. These signals are commonly spread across point-of-sale systems, workforce management platforms, inventory applications, spreadsheets and BI tools.
+
+Store managers and regional leaders often face five connected problems:
+
+1. **Fragmented visibility:** They cannot quickly see a trusted, unified picture of store performance.
+2. **Reactive management:** Dashboards report what happened, but managers must manually investigate why it happened and what to do next.
+3. **Workforce mismatch:** Staffing plans may not reflect demand by store, department, day and time, creating avoidable overstaffing or service gaps.
+4. **Late detection:** Sales, labor, availability, conversion and service anomalies may go unnoticed until they materially affect performance.
+5. **Slow decision cycles:** Regional managers spend time collecting reports and reconciling metrics instead of prioritizing interventions and supporting store teams.
+
+The result can be missed sales opportunities, unnecessary operating expense, poor labor productivity, long customer waits, inconsistent execution and delayed corrective action.
+
+## 1.2 Product opportunity
+
+StorePulse-AI turns fragmented store data into a governed decision-support capability. It combines:
+
+- Store and regional performance analytics
+- Workforce demand forecasting and labor productivity insights
+- Data-quality checks and metric definitions
+- Anomaly detection and evidence-based investigation
+- Root-cause hypotheses with traceable supporting evidence
+- AI-generated recommendations and daily manager briefings
+- Agentic workflows that coordinate approved tools and specialist agents
+- Human review, auditability, security and AI governance
+
+**Core product promise:** Move from “What happened?” to “What is likely to happen, why might it be happening, and what should the store leadership team consider doing next?”
+
+StorePulse-AI is a decision-support system, not an autonomous employee-management or scheduling authority.
+
+## 1.3 Target users
+
+- Store Manager — daily store priorities and operational actions
+- District / Regional Manager — compare stores, prioritize interventions and monitor follow-through
+- Workforce Planner — understand forecast demand, coverage gaps and labor assumptions
+- Retail Operations Leader — monitor performance, productivity and operational risk
+- Data / AI Platform Administrator — manage data quality, models, agents, tools and governance
+- Auditor / Risk Reviewer — inspect evidence, approvals, model versions and agent activity
+
+Use role-based access control so each persona sees only authorized stores, regions, employee-level data and functions.
+
+## 1.4 Potential gaps in current retail operating models
+
+Treat these as problem hypotheses to validate, not universal claims about every retailer:
+
+| Potential gap | Operational consequence | StorePulse-AI response |
+|---|---|---|
+| Sales, labor, inventory and footfall data are disconnected | Managers manually reconcile information | Governed store-level data model and unified KPI layer |
+| Reports are descriptive only | Slow investigation and action | Evidence-linked anomaly investigation and recommendations |
+| Staffing uses static averages | Coverage mismatch during demand peaks | Store / department / time-slot labor demand forecasts |
+| Store exceptions are reviewed manually | Important signals are missed | Prioritized anomaly and exception queue |
+| KPI definitions differ across teams | Conflicting performance narratives | Central metric definitions, lineage and validation |
+| AI recommendations lack evidence | Low trust and adoption risk | Evidence references, confidence, assumptions and human review |
+| Agent tools have broad permissions | Operational and data security risk | Least-privilege tools, scoped access and approval gates |
+| Model quality is not monitored | Forecast or recommendation drift | Model evaluation, drift monitoring and rollback process |
+
+---
+
+# 2. Business outcomes and measurement
+
+Design the platform around measurable outcomes, but do not claim that the software has achieved them without a controlled pilot and verified baseline.
+
+## 2.1 Outcome areas
+
+- Improve visibility into store and regional performance.
+- Reduce the time required to identify and investigate store exceptions.
+- Improve labor-demand forecast quality.
+- Identify potential labor coverage gaps and avoidable excess coverage.
+- Improve availability and service-level awareness where supporting data exists.
+- Increase the proportion of recommendations that managers review and accept.
+- Improve consistency and traceability of operational decisions.
+
+## 2.2 KPI framework
+
+Create a KPI dictionary in `docs/KPI_DICTIONARY.md`. For every KPI, define its business meaning, formula, unit, grain, source fields, filters, owner, refresh frequency, caveats and example.
+
+Include at least:
+
+**Commercial**
+- Net sales
+- Sales versus target
+- Sales growth versus comparable prior period
+- Transactions
+- Average transaction value
+- Units per transaction
+- Conversion rate, only when reliable footfall and transaction definitions exist
+
+**Workforce**
+- Scheduled labor hours
+- Actual labor hours, if supplied
+- Labor cost
+- Labor cost as a percentage of sales
+- Sales per labor hour
+- Forecast labor demand
+- Forecast coverage gap
+- Overtime hours, if supplied
+
+**Operations and customer service**
+- Footfall
+- Queue / wait-time measures, if supplied
+- Product availability / out-of-stock rate, if supplied
+- Returns rate
+- Operational exception count
+- Data freshness and data-quality score
+
+**AI and workflow**
+- Forecast WAPE / MAE / RMSE as appropriate
+- Anomaly precision, recall and review outcomes where labels exist
+- Recommendation review and acceptance rate
+- Time from anomaly detection to review
+- Agent tool-call success / failure rate
+- Human approval and rejection rate
+- Cost and latency per AI workflow
+
+Never infer a KPI from unrelated fields. If source data is unavailable, mark the KPI as unavailable and explain the required data.
+
+## 2.3 Business-impact estimation
+
+Where useful, provide an explicitly labeled **opportunity estimate**, not a guaranteed saving. Show the formula, input assumptions, source period and sensitivity range. Do not convert a forecasted labor gap directly into a recommendation to reduce employee hours. Account for service levels, contracts, local rules, employee protections and manager approval.
+
+---
+
+# 3. Product scope and functional requirements
+
+Build a polished, responsive application with realistic synthetic data for at least 30 stores across multiple regions, several departments and at least 12 months of daily history. Make the data generator deterministic using a configurable random seed.
+
+The product should support a demo journey from regional overview to store detail, anomaly investigation, workforce forecast, AI explanation, manager briefing and audit record.
+
+## 3.1 Regional command center
+
+Provide:
+- Region and date filters
+- Store count and store health overview
+- Sales versus target
+- Labor cost and labor productivity
+- Footfall and conversion where valid
+- Stores requiring attention
+- Top positive and negative movements
+- Trend charts and store comparison
+- Exception severity and freshness indicators
+- Drill-down from region to store to department / time slot
+
+Do not overload the screen. Prioritize actionable information and clear visual hierarchy.
+
+## 3.2 Store performance workspace
+
+For an individual store, show:
+- Sales, target, transactions and average transaction value
+- Historical trends and comparable periods
+- Department performance
+- Footfall and conversion if valid
+- Labor hours, cost and sales per labor hour
+- Operational indicators and available inventory signals
+- Active anomalies and their evidence
+- Recommendations, status and review history
+
+## 3.3 Workforce intelligence
+
+Forecast labor demand at store / department / time-slot level. Use historical demand signals and available context such as day of week, seasonality, promotions and holidays.
+
+Requirements:
+- Baseline model and a stronger model comparison
+- Time-based train / validation / test split; never random-split time series
+- Forecast horizon and prediction interval where supported
+- WAPE, MAE and RMSE with careful handling of zero actuals
+- Forecast-versus-actual view
+- Coverage gap calculation based on clearly defined assumptions
+- Scenario analysis for demand changes
+- Explain important features / drivers where technically appropriate
+- Do not use protected or sensitive attributes
+- Do not rank individual employees or infer individual productivity from incomplete data
+
+A workforce forecast is an estimate of workload demand, not an instruction to change a person's schedule.
+
+## 3.4 Store productivity and anomaly detection
+
+Detect unusual store-level and department-level behavior, including:
+- Sales deviation from expected baseline
+- Labor-cost-to-sales deviation
+- Sales-per-labor-hour deviation
+- Footfall / conversion deviation
+- Returns-rate deviation
+- Unusual data gaps, stale feeds or volume changes
+
+Use a combination of deterministic business thresholds and statistical / ML methods. Explain why an event was flagged. Include severity, affected period, baseline, observed value, deviation, supporting metrics, data quality and model version.
+
+Avoid presenting correlation as causation.
+
+## 3.5 Root-cause investigation
+
+Create an evidence-first investigation workflow:
+1. Identify the anomaly and exact time window.
+2. Retrieve relevant, authorized metrics for the store and comparison group.
+3. Check data quality and freshness before drawing conclusions.
+4. Compare relevant drivers and historical baselines.
+5. Generate a ranked list of **potential contributing factors**, not definitive causal claims.
+6. Link each factor to the metric, value, comparison and source period.
+7. State missing evidence and alternative explanations.
+8. Generate recommendations with expected direction of impact, risk, confidence and required owner.
+9. Route recommendations to a human for review.
+
+Use deterministic analysis first. Use an LLM to summarize and communicate verified evidence, not to invent calculations.
+
+## 3.6 Daily store manager briefing
+
+Generate a concise daily briefing with:
+- Overall store status
+- Previous-day performance versus target
+- Important positive and negative changes
+- Top three operational priorities
+- Workforce coverage observations
+- Relevant anomalies and evidence
+- Recommended next actions, owners and due dates (suggested, not automatically assigned)
+- Data limitations and confidence
+
+Allow the manager to regenerate the briefing for an authorized date / store and inspect the evidence behind every statement.
+
+## 3.7 Recommendation workflow
+
+Recommendation lifecycle:
+`Draft → Pending Review → Approved / Rejected → In Progress → Completed / Expired`
+
+Capture:
+- Recommendation ID
+- Store / region
+- Evidence and source metric references
+- Rationale and assumptions
+- Expected benefit direction (not guaranteed value)
+- Risk / operational impact
+- Confidence and limitations
+- Created time and agent / model version
+- Reviewer, decision, comments and timestamp
+- Action owner and completion status
+
+No schedule, employee, payroll, labor-budget or external operational-system mutation in the initial release.
+
+---
+
+# 4. Data architecture and validation
+
+## 4.1 Synthetic source systems
+
+Create realistic synthetic data for:
+- Point of sale / transactions or daily store sales aggregates
+- Store targets and budgets
+- Store, region and department master data
+- Footfall by store and time slot
+- Workforce demand, scheduled hours and labor-rate reference data
+- Promotions and calendar events
+- Optional inventory availability and returns
+
+Use synthetic employee identifiers only if needed. Prefer aggregated workforce data. Do not create realistic personal employee records or sensitive attributes.
+
+## 4.2 Data contracts
+
+Define versioned schemas for each dataset. Include:
+- Field name and type
+- Required / optional status
+- Units and allowed ranges
+- Primary / natural keys
+- Event date / business date and timezone semantics
+- Source system and schema version
+- Nullability and late-arriving-data behavior
+
+Document data grain explicitly. Do not join datasets at incompatible grains and accidentally multiply sales, hours or costs.
+
+## 4.3 Validation controls
+
+Implement validation at ingestion and transformation boundaries:
+- Schema and type checks
+- Required-field checks
+- Primary-key uniqueness
+- Referential integrity for store / region / department
+- Valid date and time ranges
+- Non-negative sales, hours and rates where applicable
+- Currency and unit consistency
+- Duplicate and late-arriving record detection
+- Missing-period and freshness checks
+- Plausible range / distribution checks
+- Cross-field business rules
+- Reconciliation totals where source totals exist
+
+Use a data-validation library such as Pandera or an equivalent maintained tool if appropriate. Store validation results and make failures visible in the UI.
+
+Quarantine invalid records with reason codes. Do not silently discard them. Provide configurable warning and failure thresholds. A failed critical validation must block downstream forecasts and AI recommendations for the affected data scope.
+
+## 4.4 Data lineage and quality
+
+Track:
+- Dataset and schema version
+- Source / synthetic generator version
+- Ingestion and processing timestamps
+- Transformation version
+- Row counts and rejected counts
+- Validation results
+- Data freshness
+- Model / workflow runs that consumed the data
+
+Create `docs/DATA_DICTIONARY.md` and `docs/DATA_QUALITY.md`.
+
+---
+
+# 5. AI and agentic architecture
+
+## 5.1 Design principles
+
+- Use a supervisor-orchestrated workflow with narrowly scoped specialist capabilities.
+- Prefer deterministic tools for calculations, SQL, validation and forecasts.
+- Agents must not directly access databases or arbitrary networks.
+- Expose only allowlisted, typed tools through a controlled tool gateway.
+- Use structured input / output schemas and validate every tool result.
+- Set bounded steps, timeouts, token budgets and retry policies.
+- Make workflows resumable and auditable.
+- Use idempotency keys for any operation that may be retried.
+- Do not create multiple agents merely for appearance. Each agent must have a distinct responsibility and measurable value.
+
+## 5.2 Suggested agents
+
+1. **Store Performance Analyst**
+   - Reads authorized store KPIs.
+   - Identifies performance gaps and trends.
+   - Returns structured findings with evidence references.
+
+2. **Workforce Intelligence Analyst**
+   - Reads workforce demand forecasts and approved labor-rate references.
+   - Explains coverage gaps and cost assumptions.
+   - Cannot change schedules or employee records.
+
+3. **Anomaly Investigator**
+   - Retrieves anomaly details and validated comparison metrics.
+   - Produces ranked potential contributing factors with evidence.
+   - Must distinguish correlation, hypothesis and verified fact.
+
+4. **Operations Advisor**
+   - Combines validated findings.
+   - Produces prioritized, safe, store-level recommendations.
+   - Includes risks, assumptions, confidence and human-review requirements.
+
+5. **Store Briefing Generator**
+   - Creates concise role-specific daily briefings from approved findings.
+   - Does not introduce new facts or unsupported causal claims.
+
+6. **Supervisor / Orchestrator**
+   - Classifies the request, checks authorization and selects the required workflow.
+   - Invokes only approved tools and agents.
+   - Enforces budgets, step limits, deadlines and approval gates.
+   - Validates final output and records the complete audit trace.
+
+A single request may use only one or two specialists. Do not invoke all agents for every query.
+
+## 5.3 Agent workflow
+
+Implement and document a flow similar to:
+
+`User request → Authentication / RBAC → Policy and scope validation → Supervisor → Specialist agent(s) → Typed tool gateway → Data / analytics / forecast services → Evidence validation → Recommendation generation → Human review → Audit record`
+
+For a store investigation:
+1. Validate user role and authorized store / region scope.
+2. Parse the request into a typed intent.
+3. Resolve the date window and metric definitions.
+4. Check data freshness and validation status.
+5. Retrieve relevant metrics through read-only tools.
+6. Run deterministic calculations and model inference.
+7. Generate evidence-linked hypotheses.
+8. Validate output schema, evidence references and policy.
+9. Present recommendation for human review.
+10. Persist the run trace, decisions and outcome.
+
+If evidence is missing or data quality is poor, return an explicit “insufficient evidence” result.
+
+## 5.4 MCP labor-rate integration
+
+Implement an MCP-compatible **Labor Rate Reference Server** as a separately isolated adapter / plugin. It should expose read-only tools for retrieving approved labor-rate assumptions used in scenario calculations.
+
+Suggested tools:
+- `get_labor_rate` — retrieve rate by approved region, role category, effective date and currency.
+- `list_labor_rate_regions` — list allowed region codes.
+- `get_labor_rate_metadata` — return source, version, effective dates and last-updated time.
+
+Requirements:
+- Use synthetic sample rates only; label them clearly as demo data.
+- Do not scrape websites or assume a live external labor-rate provider exists.
+- Make provider integration pluggable behind an interface.
+- Validate region, role category, effective date and currency.
+- Return source, effective date, version and freshness metadata with every rate.
+- Enforce read-only behavior, allowlisted tools and scoped access.
+- No arbitrary SQL, filesystem, shell or network tools exposed to the MCP client.
+- Validate MCP inputs and outputs against strict schemas.
+- Add authentication / authorization at the host or gateway boundary where supported by the chosen MCP transport.
+- Use the official, current MCP specification and maintained SDK. Verify current transport and SDK APIs before implementation.
+- Pin the SDK version and document transport choice and security assumptions.
+- If external MCP connectivity is unavailable, provide a local MCP server and a deterministic in-process adapter so the application remains testable.
+- Add contract tests, authorization tests, malformed-input tests, timeout tests and tool-denial tests.
+
+The MCP server provides reference data only. It does not approve labor changes, modify payroll or make employment decisions.
+
+---
+
+# 6. AI governance and responsible AI
+
+Create `docs/AI_GOVERNANCE.md` and implement the controls that can be demonstrated in the application.
+
+## 6.1 AI inventory and model cards
+
+For every predictive model and LLM workflow, document:
+- Name, purpose and owner
+- Intended users and intended use
+- Out-of-scope / prohibited use
+- Input data and data lineage
+- Training / evaluation data description
+- Model and prompt version
+- Evaluation metrics and thresholds
+- Known limitations and failure modes
+- Human oversight
+- Monitoring and rollback criteria
+
+## 6.2 Governance controls
+
+- Model / prompt / agent version tracking
+- Evaluation datasets and regression tests
+- Evidence traceability for generated claims
+- Human approval for operational recommendations
+- Role-based access and region / store scoping
+- Data minimization and retention policy
+- PII detection / redaction where applicable
+- Prompt-injection defenses
+- Prohibited-use rules
+- Model drift and quality monitoring
+- Incident reporting and rollback procedure
+- Audit trail for user requests, tool calls, outputs and approvals
+- Clear AI-generated content labels
+- User feedback and recommendation outcome capture
+
+## 6.3 Responsible workforce AI
+
+The platform must not:
+- Make hiring, firing, promotion, disciplinary or compensation decisions.
+- Score, rank or surveil individual employees.
+- Infer sensitive employee traits.
+- Recommend punitive action based on noisy or incomplete metrics.
+- Automatically reduce employee hours or change shifts.
+- Treat a forecast as a command.
+
+Use aggregated workforce demand and operational workload. Where role-level labor assumptions are used, make the assumptions transparent. Keep human managers accountable for decisions and local employment-law / policy compliance.
+
+## 6.4 Governance frameworks
+
+Map relevant controls to:
+- NIST AI Risk Management Framework (Govern, Map, Measure, Manage)
+- NIST Generative AI Profile where applicable
+- ISO/IEC 42001 concepts for AI management systems
+- Applicable privacy and employment requirements for the deployment jurisdiction
+
+Provide a mapping matrix with columns: framework area, StorePulse-AI control, implementation evidence, status, residual gap. Do not claim certification or legal compliance.
+
+---
+
+# 7. Application security — OWASP-aligned
+
+Create `docs/SECURITY_THREAT_MODEL.md`, `docs/OWASP_CONTROL_MAPPING.md` and a practical security test suite.
+
+Use current official OWASP guidance at implementation time. At minimum assess and map:
+
+## 7.1 OWASP Top 10 for Web Applications
+
+Use the latest applicable OWASP Top 10 release and explicitly consider:
+- Broken Access Control
+- Security Misconfiguration
+- Software Supply Chain Failures
+- Cryptographic Failures
+- Injection
+- Insecure Design
+- Authentication Failures
+- Software / Data Integrity Failures
+- Security Logging and Alerting Failures
+- Mishandling of Exceptional Conditions
+
+Do not blindly copy an older list. Verify the current official release and record the version/date used.
+
+## 7.2 OWASP API Security Top 10
+
+Assess:
+- Broken Object Level Authorization (BOLA)
+- Broken Authentication
+- Broken Object Property Level Authorization
+- Unrestricted Resource Consumption
+- Broken Function Level Authorization
+- Unrestricted Access to Sensitive Business Flows
+- Server-Side Request Forgery
+- Security Misconfiguration
+- Improper Inventory Management
+- Unsafe Consumption of APIs
+
+Enforce tenant / region / store-level authorization on every object access. Test that changing a store ID in a URL or request body cannot reveal another store's data.
+
+## 7.3 OWASP Top 10 for LLM Applications
+
+Use the current official OWASP LLM Top 10 release. Explicitly assess:
+- Prompt Injection
+- Sensitive Information Disclosure
+- Supply Chain
+- Data and Model Poisoning
+- Improper Output Handling
+- Excessive Agency
+- System Prompt Leakage
+- Vector and Embedding Weaknesses, if retrieval is introduced
+- Misinformation
+- Unbounded Consumption
+
+Implement:
+- Treat retrieved data and user-provided text as untrusted.
+- Separate instructions from data.
+- Never let an LLM decide authorization.
+- Enforce permissions in the tool gateway and data service.
+- Allowlist tools and validate arguments.
+- Use read-only tools by default.
+- Require human approval for consequential actions.
+- Validate LLM output against schemas and business rules.
+- Redact secrets and sensitive fields before model calls.
+- Limit context, tokens, tool calls, runtime and spend.
+- Add prompt-injection and data-exfiltration tests.
+- Do not place secrets in prompts or system instructions.
+- Do not rely on prompt wording as a security boundary.
+
+## 7.4 OWASP Agentic AI security
+
+Review current OWASP guidance for agentic applications and MCP security guidance. Assess:
+- Excessive agency and unsafe autonomy
+- Tool permission escalation
+- Tool / MCP server impersonation and trust
+- Malicious or compromised tool responses
+- Cross-agent trust and identity propagation
+- Memory poisoning and context contamination
+- Unbounded agent loops and resource exhaustion
+- Unauthorized cross-store data access
+- Human approval bypass
+- Inadequate auditability
+
+Use explicit tool manifests, tool identity, scoped credentials, server-side authorization, output validation, timeouts, rate limits and audit records. A tool description is not a security control.
+
+## 7.5 Secure application baseline
+
+- Secure authentication; use a supported OIDC provider when configured and a safe local development mode otherwise.
+- RBAC plus resource-level authorization.
+- Secure cookies / token handling appropriate to the chosen architecture.
+- CSRF protection where cookie-based sessions are used.
+- CORS allowlist; never use wildcard origins with credentials.
+- Request size, rate and concurrency limits.
+- Parameterized SQL / ORM safe patterns.
+- Output encoding and XSS protections.
+- Server-side input validation.
+- Security headers and restrictive Content Security Policy where feasible.
+- TLS in deployed environments.
+- Secrets from environment / secret manager, never source control.
+- Dependency and container scanning.
+- Non-root container user and minimal base image.
+- No sensitive data in logs.
+- Audit logs protected against tampering.
+- Backup / recovery and retention notes.
+
+Run appropriate static analysis, dependency scanning, secret scanning and dynamic/API security tests where tooling is available. Document unavailable checks rather than pretending they ran.
+
+---
+
+# 8. Clean, modern architecture
+
+Use a clean architecture with explicit boundaries and a modular monolith as the first deployment unit.
+
+## 8.1 Suggested logical modules
+
+**Presentation**
+- React web application
+- Role-specific dashboards
+- Accessible components and responsive layouts
+
+**Application**
+- Use cases / command handlers
+- Query services
+- Request orchestration
+- Authorization and policy checks
+- Recommendation review workflow
+
+**Domain**
+- Store, Region, Department
+- Sales Performance
+- Workforce Demand
+- Labor Rate Reference
+- Store Anomaly
+- Evidence
+- Recommendation
+- Approval / Audit
+
+**Infrastructure**
+- PostgreSQL repository implementations
+- Data ingestion and validation
+- Forecasting and anomaly services
+- LLM provider adapter
+- MCP client / labor-rate adapter
+- Telemetry and audit persistence
+
+**AI / Intelligence**
+- Supervisor workflow
+- Specialist agent workflows
+- Tool gateway
+- Prompt and model registry
+- Evaluation harness
+- Guardrails and output validation
+
+Keep domain logic independent of FastAPI, React, the LLM provider and MCP implementation.
+
+## 8.2 Suggested stack
+
+Choose compatible, maintained versions and pin them:
+- Frontend: React + TypeScript + Vite
+- UI: a consistent accessible component system
+- Charts: Plotly or another maintained chart library
+- Backend: Python + FastAPI + Pydantic
+- Data: PostgreSQL
+- Data validation: Pandera or equivalent
+- Analytics: Pandas / NumPy
+- ML: scikit-learn and XGBoost where useful
+- Forecasting: compare a seasonal baseline with a suitable ML model; use Prophet only if it adds measurable value
+- Agent orchestration: LangGraph or a simpler explicit workflow engine if it is more reliable
+- MCP: official maintained Python SDK, behind an adapter
+- Testing: pytest, HTTPX, Playwright, Vitest / React Testing Library
+- Observability: OpenTelemetry, Prometheus and Grafana; structured JSON logs
+- Local runtime: Docker Compose
+- CI: GitHub Actions
+
+Do not introduce Kafka, Kubernetes, a vector database or a feature store unless a concrete requirement justifies it. Explain any added infrastructure.
+
+## 8.3 Architecture diagrams
+
+Create Mermaid diagrams in `docs/architecture/` and render / validate them where tooling permits:
+
+1. `context.mmd` — users, StorePulse-AI boundary and external source systems.
+2. `container.mmd` — frontend, API, modules, database, AI runtime, MCP labor-rate server and telemetry.
+3. `component.mmd` — clean architecture modules and dependency direction.
+4. `data-flow.mmd` — ingestion, validation, transformation, metrics, forecast, anomaly and briefing flow.
+5. `agent-workflow.mmd` — supervisor, specialist agents, tool gateway, policy checks and human approval.
+6. `security-boundaries.mmd` — trust boundaries, identities, secrets, data zones and tool permissions.
+7. `deployment.mmd` — local Docker Compose and a cloud-ready deployment option.
+
+Use Mermaid flowcharts with clear trust boundaries. Add a short explanation and key design decisions for every diagram. Ensure diagrams reflect the implemented system, not an aspirational architecture presented as completed.
+
+---
+
+# 9. API design
+
+Use versioned REST APIs under `/api/v1`. Provide OpenAPI documentation and consistent error responses.
+
+Suggested endpoints:
+- `GET /api/v1/health`
+- `GET /api/v1/regions`
+- `GET /api/v1/stores`
+- `GET /api/v1/stores/{store_id}/performance`
+- `GET /api/v1/stores/{store_id}/workforce/forecast`
+- `GET /api/v1/stores/{store_id}/anomalies`
+- `GET /api/v1/anomalies/{anomaly_id}`
+- `POST /api/v1/anomalies/{anomaly_id}/investigations`
+- `POST /api/v1/briefings`
+- `GET /api/v1/recommendations`
+- `POST /api/v1/recommendations/{recommendation_id}/review`
+- `GET /api/v1/data-quality/runs`
+- `GET /api/v1/ai/runs/{run_id}`
+- `GET /api/v1/audit/events`
+
+Use pagination, filtering, validation, authorization and rate limiting. Do not expose internal stack traces or sensitive database details in API errors.
+
+---
+
+# 10. User experience and visual design
+
+Create a polished enterprise product, not a generic AI chatbot template.
+
+Visual direction:
+- Modern retail operations command center
+- Professional, calm, data-dense but readable
+- Navy / charcoal foundations with restrained teal or blue accents
+- Consistent spacing, typography, cards and chart language
+- Clear severity colors with accessible contrast
+- Responsive desktop and tablet layouts
+- Loading, empty, error, stale-data and permission-denied states
+- Keyboard accessibility and semantic controls
+- Avoid decorative charts without business meaning
+
+Required screens:
+1. Regional Command Center
+2. Store Performance
+3. Workforce Intelligence
+4. Anomaly & Exception Center
+5. Investigation Workspace
+6. AI Recommendations / Approval Queue
+7. Daily Store Briefing
+8. Data Quality & Lineage
+9. AI Governance / Model Registry
+10. Agent Run & Tool Audit
+11. Settings / User & Role Administration (local demo only if full identity integration is not configured)
+
+The experience should make it obvious which content is measured, forecasted, inferred, AI-generated or manually approved.
+
+---
+
+# 11. Monitoring, observability and operations
+
+Implement end-to-end observability across API requests, data pipelines, model inference and agent workflows.
+
+## 11.1 Technical telemetry
+
+Capture:
+- Request count, latency and error rate
+- API endpoint latency
+- Database query latency and connection health
+- Data pipeline duration, row counts and failures
+- Forecast execution duration and evaluation metrics
+- LLM latency, token usage and estimated cost when provider data is available
+- Agent workflow duration, step count and outcome
+- Tool invocation success / failure / timeout
+- Retry count and budget exhaustion
+- MCP server health and tool latency
+
+Use OpenTelemetry traces with correlation IDs. Avoid logging raw prompts or sensitive records by default. Apply redaction and sampling.
+
+## 11.2 Business and AI monitoring
+
+Monitor:
+- Data freshness and validation failures
+- Forecast error over time
+- Model drift / distribution changes
+- Anomaly volume and review outcomes
+- Recommendation acceptance / rejection
+- Evidence-validation failures
+- Human approval delays
+- Agent loop / tool-call anomalies
+- AI cost and latency budgets
+
+Create dashboards or a local observability profile using Prometheus and Grafana. Provide structured JSON logs and a documented local way to inspect them.
+
+## 11.3 Reliability
+
+- Health and readiness endpoints
+- Timeouts and bounded retries with backoff
+- Idempotent workflow execution
+- Graceful degradation when the LLM or MCP server is unavailable
+- Circuit-breaker behavior where justified
+- Database migrations and backup guidance
+- Configurable resource budgets
+- Clear error and recovery states
+
+The core store analytics must continue to work when the LLM provider is unavailable.
+
+---
+
+# 12. Testing and quality engineering
+
+Build a layered test strategy and execute it.
+
+## 12.1 Required tests
+
+**Unit**
+- KPI formulas and edge cases
+- Forecast feature generation and evaluation
+- Anomaly thresholds and severity
+- Data validation rules
+- Recommendation policy checks
+- Authorization helpers
+- MCP input / output schemas
+- Agent output validation
+
+**Integration**
+- API to database
+- Ingestion to validation to analytics
+- Forecast pipeline
+- Anomaly investigation workflow
+- LLM adapter with deterministic fake provider
+- MCP adapter and local MCP server
+- Audit event persistence
+- Role / region / store authorization
+
+**End-to-end**
+- Regional manager logs in and views authorized region.
+- Manager opens a store and inspects performance.
+- System flags a synthetic anomaly.
+- Manager starts an investigation.
+- Agents retrieve validated evidence.
+- Advisor creates a recommendation.
+- Manager approves or rejects it.
+- Daily briefing reflects the approved evidence and recommendation.
+- Audit page shows the run and approval history.
+
+**Security**
+- Cross-store and cross-region access attempts
+- BOLA / BFLA tests
+- Injection and malformed payloads
+- Prompt injection in user text and retrieved data
+- Tool allowlist bypass attempts
+- MCP malformed / unauthorized tool calls
+- Sensitive field leakage
+- Rate / payload / token budget limits
+- Secret scanning and dependency checks
+
+**AI evaluation**
+- Golden dataset for store explanations and briefings
+- Evidence-grounding checks
+- Unsupported-claim detection
+- Recommendation policy compliance
+- Forecast baseline comparison
+- Anomaly precision / recall when labeled data exists
+- Prompt / model regression evaluation
+
+## 12.2 Quality gates
+
+Set practical quality gates:
+- No failing critical unit or integration tests.
+- No known critical authorization defect.
+- No secrets committed.
+- All critical data contracts validated.
+- No recommendation without traceable evidence.
+- No autonomous consequential action.
+- Forecast evaluation reported against a baseline.
+- LLM / agent behavior evaluated against a small golden set.
+- Accessibility and frontend build checks run.
+- Security scan results documented.
+
+Do not invent test coverage percentages. Report actual tool output.
+
+---
+
+# 13. Repository structure
+
+Use a clear structure similar to the following, adapting only with documented reasons:
+
+```text
+Retail-StorePulse-AI/
+├── apps/
+│   ├── api/
+│   └── web/
+├── services/
+│   └── labor_rate_mcp/
+├── packages/
+│   ├── domain/
+│   ├── application/
+│   ├── analytics/
+│   ├── forecasting/
+│   ├── anomaly_detection/
+│   ├── ai_orchestration/
+│   ├── tool_gateway/
+│   └── shared_contracts/
+├── data/
+│   ├── synthetic/
+│   ├── seeds/
+│   └── samples/
+├── tests/
+│   ├── unit/
+│   ├── integration/
+│   ├── e2e/
+│   ├── security/
+│   └── ai_evaluation/
+├── infra/
+│   ├── docker/
+│   ├── prometheus/
+│   └── grafana/
+├── docs/
+│   ├── architecture/
+│   ├── IMPLEMENTATION_PLAN.md
+│   ├── DECISIONS.md
+│   ├── KPI_DICTIONARY.md
+│   ├── DATA_DICTIONARY.md
+│   ├── DATA_QUALITY.md
+│   ├── AI_GOVERNANCE.md
+│   ├── SECURITY_THREAT_MODEL.md
+│   ├── OWASP_CONTROL_MAPPING.md
+│   ├── TEST_STRATEGY.md
+│   ├── OPERATIONS_RUNBOOK.md
+│   └── KNOWN_GAPS.md
+├── scripts/
+├── .github/
+│   └── workflows/
+├── .env.example
+├── .gitignore
+├── docker-compose.yml
+├── Makefile
+├── README.md
+└── LICENSE
+```
+
+Do not add a license automatically. Ask the repository owner or preserve the existing license.
+
+---
+
+# 14. CI/CD and software delivery lifecycle
+
+Create GitHub Actions workflows for:
+- Formatting and linting
+- Backend unit / integration tests
+- Frontend lint / test / build
+- Type checking
+- Dependency vulnerability scanning
+- Secret scanning
+- Container build and scan
+- API contract checks
+- Mermaid / documentation checks where practical
+
+Use pull-request checks and avoid deploying automatically to a real environment. Provide a documented release workflow with environment approvals and rollback notes.
+
+Include:
+- Reproducible dependency installation
+- Database migration checks
+- Test data seeding
+- Build artifacts
+- Version metadata
+- Environment-specific configuration
+- Deployment health checks
+
+---
+
+# 15. README and project storytelling
+
+Write a professional README that communicates business value and engineering depth to retail technology leaders, engineering hiring managers and architects.
+
+Include:
+1. Project name and one-line positioning
+2. Business problem statement
+3. Why store operations intelligence matters
+4. Target users and business scenarios
+5. Proposed solution and key capabilities
+6. Architecture diagram
+7. Agentic workflow diagram
+8. Data flow and data validation
+9. AI governance and OWASP security posture
+10. Technology stack
+11. Screenshots / demo walkthrough placeholders until real screenshots exist
+12. Local setup and run instructions
+13. Test and quality commands
+14. Synthetic data disclaimer
+15. Current implementation status
+16. Known gaps and future roadmap
+
+Use business language as well as engineering language. Explain how the platform could support store performance improvement without claiming unvalidated savings.
+
+Create a `docs/DEMO_SCRIPT.md` with a 5–7 minute executive walkthrough:
+- Start at regional performance.
+- Identify an underperforming store.
+- Inspect evidence and data quality.
+- Review labor demand forecast.
+- Run root-cause investigation.
+- Review recommendation and human approval.
+- Open the daily briefing and audit trail.
+
+---
+
+# 16. Implementation milestones
+
+Execute in this order. Keep the application runnable at each meaningful milestone.
+
+## Milestone 0 — Repository discovery and plan
+- Inspect repository and runtime.
+- Identify existing work and constraints.
+- Create implementation plan and architecture decision log.
+- Confirm stack and folder structure.
+
+**Exit criteria:** A clear plan, risks, architecture decisions and runnable development approach.
+
+## Milestone 1 — Domain, data and foundation
+- Define domain entities and contracts.
+- Create deterministic synthetic dataset generator.
+- Implement database schema / migrations.
+- Implement ingestion and validation.
+- Add KPI dictionary and data-quality reporting.
+
+**Exit criteria:** Seed data loads, validations run and KPI queries return tested results.
+
+## Milestone 2 — API and core analytics
+- Implement clean architecture modules.
+- Add authenticated / local-demo authorization mode.
+- Implement regional and store APIs.
+- Implement KPI calculations and filters.
+- Add API and integration tests.
+
+**Exit criteria:** Core analytics are usable without an LLM.
+
+## Milestone 3 — Forecasting and anomalies
+- Implement baseline and candidate workforce forecasts.
+- Evaluate using time-based splits.
+- Implement anomaly detection and evidence records.
+- Add forecast and anomaly screens.
+
+**Exit criteria:** Forecasts are reproducible, metrics are reported and anomalies are explainable.
+
+## Milestone 4 — Agentic workflows and MCP
+- Implement typed tool gateway.
+- Implement supervisor and specialist workflows.
+- Implement local Labor Rate Reference MCP server and adapter.
+- Add evidence validation, budgets, timeouts and audit traces.
+- Add deterministic fake LLM provider for tests.
+- Add human approval workflow.
+
+**Exit criteria:** A complete investigation can run safely with evidence-linked output; no autonomous operational changes are possible.
+
+## Milestone 5 — Frontend experience
+- Implement all core screens.
+- Connect APIs.
+- Add loading / error / empty / stale states.
+- Add responsive and accessibility checks.
+- Add the executive demo journey.
+
+**Exit criteria:** A user can complete the full demo journey in the UI.
+
+## Milestone 6 — Governance, security and observability
+- Implement governance registry and audit views.
+- Complete OWASP control mapping and threat model.
+- Add security tests and scans.
+- Add telemetry, dashboards and operational runbook.
+
+**Exit criteria:** Security, governance and monitoring controls are demonstrable and gaps are documented.
+
+## Milestone 7 — Release hardening
+- Run full test suite.
+- Fix defects.
+- Verify fresh-clone setup.
+- Verify Docker Compose startup and health checks.
+- Validate documentation and diagrams.
+- Capture genuine screenshots if the environment supports it.
+- Produce final implementation report.
+
+**Exit criteria:** A reproducible, tested local demonstration with honest implementation status and known limitations.
+
+---
+
+# 17. Definition of done
+
+The project is not complete merely because the frontend looks good.
+
+StorePulse-AI is ready for portfolio demonstration only when:
+
+- A fresh clone can be configured using documented steps.
+- Synthetic data can be generated and loaded reproducibly.
+- Data contracts and validation are executable.
+- Regional and store performance analytics work.
+- Workforce forecasting is evaluated against a baseline.
+- Anomaly detection produces explainable evidence.
+- An agentic investigation completes using typed, allowlisted tools.
+- MCP labor-rate tools return validated, versioned synthetic reference data.
+- AI output is evidence-linked and schema-validated.
+- Recommendations require human review.
+- Cross-store authorization tests pass.
+- AI governance and OWASP control mappings are documented.
+- Logs, traces, health checks and key operational metrics are available.
+- CI checks run and their results are reported.
+- Architecture diagrams match the implemented product.
+- README and demo script are accurate.
+- Known gaps and future improvements are explicit.
+
+---
+
+# 18. Final execution instructions to Claude Code
+
+Begin now:
+
+1. Inspect the repository and report the current state briefly.
+2. Create `docs/IMPLEMENTATION_PLAN.md` and `docs/DECISIONS.md`.
+3. Propose the smallest coherent first vertical slice and implement it.
+4. Run tests and show actual results.
+5. Continue milestone by milestone without replacing working functionality with mock screens.
+6. Keep `docs/IMPLEMENTATION_STATUS.md` updated with completed, in-progress and blocked items.
+7. Before adding a new dependency or external service, explain its purpose and verify it is maintained.
+8. When an external LLM key is absent, use the deterministic fake provider for tests and a clear configuration message for live mode.
+9. Do not stop at architecture diagrams or a README. Deliver a runnable application.
+10. At the end, report:
+   - What was implemented
+   - What was tested and exact results
+   - How to run the application
+   - How to run the MCP server
+   - How to run security and AI evaluation checks
+   - Architecture and key trade-offs
+   - What is simulated versus live
+   - Known limitations and next recommended milestone
+
+**Product principle:** StorePulse-AI must earn trust through reliable data, explainable analytics, constrained agents, secure tools and human-governed decisions. The goal is not to demonstrate the maximum number of AI agents. The goal is to demonstrate how a well-engineered AI platform can help retail leaders make better store-level decisions.
