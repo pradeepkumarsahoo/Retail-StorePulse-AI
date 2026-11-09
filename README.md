@@ -4,7 +4,7 @@
 > Governed, evidence-first decision intelligence for multi-store retailers.
 
 <p>
-<a href="#test-results">63 tests · all passing</a> ·
+<a href="#test-results">166 tests · all passing</a> ·
 <a href="#5-security-posture-owasp-aligned">OWASP-mapped controls</a> ·
 <a href="#4-agentic-architecture">5 specialist agents + supervisor</a> ·
 <a href="#6-observability-logging--monitoring">JSON logs · Prometheus metrics</a> ·
@@ -504,7 +504,7 @@ python -m scripts.run_forecast --horizon-days 14
 # 5. Run anomaly detection over the last 30 days
 python -m scripts.run_anomalies --days 30
 
-# 6. Run the full test suite (63 tests)
+# 6. Run the full test suite (166 tests)
 python -m pytest tests/ -v
 
 # 7. Start the API + UI
@@ -532,40 +532,72 @@ curl -s -X POST -H "Authorization: Bearer demo-admin" \
 ### Test results
 
 ```
-tests\integration\test_api_agents_e2e.py ..                              [  3%]
-tests\integration\test_api_kpis_and_security.py .........                [ 17%]
-tests\integration\test_api_splh.py ........                              [ 30%]
-tests\security\test_prompt_injection.py ..                               [ 33%]
-tests\unit\test_all_kpis.py ..........                                   [ 49%]
-tests\unit\test_anomaly_detector.py ..                                   [ 52%]
-tests\unit\test_approval_workflow.py ....                                [ 58%]
-tests\unit\test_fake_llm.py ..                                           [ 61%]
-tests\unit\test_forecast_baseline.py ....                                [ 68%]
-tests\unit\test_generator_determinism.py ..                              [ 71%]
-tests\unit\test_mcp_labor_rate.py ......                                 [ 80%]
-tests\unit\test_pandera_schemas.py ...                                   [ 85%]
-tests\unit\test_splh_math.py .....                                       [ 93%]
-tests\unit\test_tool_gateway.py ....                                     [100%]
+tests\integration\test_api_agents_e2e.py ..                              [  1%]
+tests\integration\test_api_kpis_and_security.py .........                [  6%]
+tests\integration\test_api_splh.py ........                              [ 11%]
+tests\security\test_prompt_injection.py ..                               [ 12%]
+tests\unit\test_agents.py ..............                                 [ 21%]
+tests\unit\test_all_kpis.py ..........                                   [ 27%]
+tests\unit\test_anomaly_detector.py ..                                   [ 28%]
+tests\unit\test_anomaly_extras.py .........                              [ 33%]
+tests\unit\test_approval_workflow.py ....                                [ 36%]
+tests\unit\test_audit.py .......                                         [ 40%]
+tests\unit\test_domain_entities.py ......                                [ 43%]
+tests\unit\test_fake_llm.py ..                                           [ 45%]
+tests\unit\test_forecast_baseline.py ....                                [ 47%]
+tests\unit\test_forecast_service.py ....                                 [ 50%]
+tests\unit\test_generator_determinism.py ..                              [ 51%]
+tests\unit\test_ingest.py .....                                          [ 54%]
+tests\unit\test_kpi_masters.py .....                                     [ 57%]
+tests\unit\test_logging.py .........                                     [ 62%]
+tests\unit\test_mcp_labor_rate.py ......                                 [ 66%]
+tests\unit\test_metrics.py ......                                        [ 69%]
+tests\unit\test_pandera_schemas.py ...                                   [ 71%]
+tests\unit\test_recommendations_list.py ........                         [ 76%]
+tests\unit\test_security.py ..............                               [ 84%]
+tests\unit\test_splh_math.py .....                                       [ 87%]
+tests\unit\test_supervisor.py .......                                    [ 92%]
+tests\unit\test_tool_gateway.py ....                                     [ 94%]
+tests\unit\test_tool_gateway_more.py .........                           [100%]
 
-======================= 63 passed, 1 warning in 11.71s ========================
+====================== 166 passed, 1 warning in 26.46s ========================
 ```
 
-### What's covered
+### Test totals
 
-| Layer | What's verified |
+| Suite | Count |
 |---|---|
-| **KPI math** | Every metric's formula, edge cases (empty window, zero denominator, half-open semantics), lineage envelope. |
-| **Pandera validation** | Negative sales, bad store IDs, wrong currency — all quarantined with reason codes. |
-| **Generator** | Byte-identical output under the same seed; different seeds diverge. |
-| **Forecasting** | DOW-hour prediction level, 80% intervals, WAPE/MAE/RMSE, strict time-based split. |
-| **Anomaly detection** | Robust z-score flags true outliers; empty history flags nothing. |
-| **Tool gateway** | Unknown tool rejected, out-of-allowlist denied, cross-store scope denied, every call recorded. |
-| **MCP labor-rate server** | Versioned record returned, unknown region rejected, malformed date rejected, unknown tool rejected, metadata correct. |
-| **Fake LLM** | Byte-stable output, empty-evidence refusal. |
-| **Approval workflow** | Happy path, terminal rejection, invalid transition, not-found. |
-| **Auth & RBAC (BOLA / BFLA)** | West manager cannot see Midwest stores. S001 manager cannot see S002. Store manager cannot approve. Invalid token = 401. |
-| **End-to-end agent flow** | Investigate → audit row → recommendation → review → approve → start → complete. |
-| **Prompt injection** | Hostile user text and hostile reviewer comments cannot change LLM output or force invalid transitions. |
+| Unit — `tests/unit/` (26 files) | **145** |
+| Integration — `tests/integration/` | **19** |
+| Security — `tests/security/` | **2** |
+| **Total** | **166** |
+
+### What's covered — unit tests
+
+Every module in `packages/`, `services/`, `infrastructure/`, and `apps/api/` has at least one dedicated unit-test module. The table maps the test file to the behaviour it pins.
+
+| Area | Test file | Behaviour verified |
+|---|---|---|
+| **KPI math** | [`test_all_kpis.py`](tests/unit/test_all_kpis.py), [`test_splh_math.py`](tests/unit/test_splh_math.py) | All 8 metric formulas, SPLH edge cases (zero labor, out-of-window, half-open semantics), lineage envelope, `KpiWindow` validation. |
+| **KPI masters** | [`test_kpi_masters.py`](tests/unit/test_kpi_masters.py) | `list_stores` filters/ordering, `list_regions` uniqueness. |
+| **Domain entities** | [`test_domain_entities.py`](tests/unit/test_domain_entities.py) | Frozen-dataclass invariants, `KpiWindow` reversed/equal-bound rejection, `KpiValue` null-for-insufficient-evidence. |
+| **Validation + ingest** | [`test_pandera_schemas.py`](tests/unit/test_pandera_schemas.py), [`test_ingest.py`](tests/unit/test_ingest.py) | Negative sales / bad `store_id` / wrong currency / zero-txn-with-sales all quarantined with reason codes. Unknown dataset rejected. Mixed batches split correctly. |
+| **Generator** | [`test_generator_determinism.py`](tests/unit/test_generator_determinism.py) | Byte-identical output under seed=42; different seeds diverge. |
+| **Forecasting** | [`test_forecast_baseline.py`](tests/unit/test_forecast_baseline.py), [`test_forecast_service.py`](tests/unit/test_forecast_service.py) | DOW-hour prediction level, 80% interval containment, WAPE/MAE/RMSE math, strict time-based split. `run_forecast` writes `forecast_run` + `forecast` rows; empty history → zero points; `get_forecast` scoped to `store_id`. |
+| **Anomaly detection** | [`test_anomaly_detector.py`](tests/unit/test_anomaly_detector.py), [`test_anomaly_extras.py`](tests/unit/test_anomaly_extras.py) | Robust z-score flags outlier hours; empty history → no findings. Labor-coverage gap: severity thresholds, small-gap ignore, zero-prediction guard, missing-forecast guard. `list_anomalies` filters, `get_anomaly` decode. |
+| **Approval workflow** | [`test_approval_workflow.py`](tests/unit/test_approval_workflow.py), [`test_recommendations_list.py`](tests/unit/test_recommendations_list.py) | Happy path, terminal `rejected`, invalid transitions, not-found. `list_recommendations` filters/limit/evidence decode. Reviewer fields populated on transition. Approval events emitted on create. |
+| **Governance — audit trail** | [`test_audit.py`](tests/unit/test_audit.py) | `record_audit` persists full row, correlation-id from thread-local or explicit override, null-payload handling, `list_audit_events` filters + newest-first ordering + JSON decode. |
+| **Observability — metrics** | [`test_metrics.py`](tests/unit/test_metrics.py) | Counter inc with labels, independent label sets, histogram count/sum/quantiles, `# HELP`/`# TYPE` emitted once per metric, reset, bare-name rendering. |
+| **Observability — logging** | [`test_logging.py`](tests/unit/test_logging.py) | Correlation-id round-trip, thread-local isolation, `JsonFormatter` fields/extras/exception-info/single-line JSON, `configure_logging` replaces handlers and reads `STOREPULSE_LOG_LEVEL`. |
+| **RBAC primitives** | [`test_security.py`](tests/unit/test_security.py) | Every path through `principal_can_see_store` (wildcard region/store, explicit region/store, no-match deny). `ensure_store_access` raises 403. `authenticate` missing/wrong-scheme/unknown-token → 401. `require_role` deny/allow. `APPROVER_ROLES` invariant (no store_manager). |
+| **MCP labor-rate server** | [`test_mcp_labor_rate.py`](tests/unit/test_mcp_labor_rate.py) | Versioned record returned, unknown region/role rejected, malformed effective date rejected by Pydantic, unknown tool rejected, metadata correct. |
+| **Tool gateway** | [`test_tool_gateway.py`](tests/unit/test_tool_gateway.py), [`test_tool_gateway_more.py`](tests/unit/test_tool_gateway_more.py) | Unknown tool → `ToolNotFound`. Out-of-allowlist → `ToolDenied`. Cross-store scope → `ToolDenied`. Bad Pydantic args → `ToolInvocationError`. Metric counters incremented for `ok` / `denied` / `error`. MCP proxied. `stores.list` filtered to principal scope. Every attempt records a `tool_call` row with `seq`, `agent_name`, `status`. |
+| **LLM provider** | [`test_fake_llm.py`](tests/unit/test_fake_llm.py) | Byte-stable deterministic output; empty evidence emits "insufficient" message. |
+| **Supervisor orchestration** | [`test_supervisor.py`](tests/unit/test_supervisor.py) | Each workflow (`investigate_store`, `investigate_anomaly`, `daily_briefing`) writes exactly one `ai_run` row + one audit entry. Unknown store / missing anomaly → `status="error"` persisted. `RunBudget(max_steps)` enforced. Token counting from the LLM provider. |
+| **Agent specialists** | [`test_agents.py`](tests/unit/test_agents.py) | `store_performance`: all 7 KPIs + 2 prior-window calls, `last_seq` arithmetic, `sales_change_pct` derived. `workforce`: all tools called, forecast capped at 24 points. `operations_advisor`: decision table (down/up/neutral/unknown) + forbidden-term policy check. `briefing`: narrative composed, LLM model stamp, window = prior day. `anomaly_investigator`: hypothesis ranking + fallback. |
+| **End-to-end agent flow** | `tests/integration/test_api_agents_e2e.py` | Investigate → `ai_run` + `tool_call[]` + `audit_event` → `recommendation` → reviewer approves → admin starts & completes. Store manager gets 403 on `/review`. |
+| **BOLA / BFLA** | `tests/integration/test_api_kpis_and_security.py` | West manager cannot see Midwest stores. S001 manager cannot see S002. Store manager cannot approve. Invalid token → 401. |
+| **Prompt injection** | `tests/security/test_prompt_injection.py` | Hostile user text cannot change deterministic-provider output. Hostile reviewer comment cannot force an invalid workflow transition. |
 
 ---
 
@@ -605,9 +637,11 @@ Retail-StorePulse-AI/
 ├── scripts/                          # generate_data, load_db, run_forecast, run_anomalies
 ├── data/synthetic/                   # Generator output (gitignored)
 ├── tests/
-│   ├── unit/                         # 32 tests across KPI, forecasting, anomaly, tools, MCP, LLM, approvals, pandera
-│   ├── integration/                  # API, agents, BOLA/BFLA
-│   └── security/                     # Prompt injection, workflow abuse
+│   ├── unit/                         # 145 tests across 26 files: KPI math, domain, forecasting, anomaly, ingest,
+│   │                                 #   tool gateway, MCP, LLM, approvals, audit, metrics, logging, RBAC,
+│   │                                 #   supervisor orchestration, each agent specialist
+│   ├── integration/                  # 19 API/agent tests incl. BOLA/BFLA
+│   └── security/                     # 2 tests — prompt injection, workflow abuse
 ├── docs/
 │   ├── images/                       # Inline SVG diagrams for this README
 │   ├── architecture.html             # Original stakeholder briefing
