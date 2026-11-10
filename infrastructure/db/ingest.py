@@ -10,6 +10,7 @@ import pandera as pa
 from sqlalchemy.engine import Engine
 
 from packages.validation.schemas import (
+    INBOUND_SHIPMENT_SCHEMA,
     LABOR_HOURS_SCHEMA,
     SALES_TXN_SCHEMA,
     STORE_SCHEMA,
@@ -22,6 +23,8 @@ SCHEMA_MAP = {
     "sales_txn": (SALES_TXN_SCHEMA, "sales_txn"),
     "labor_hours": (LABOR_HOURS_SCHEMA, "labor_hours"),
     "traffic_count": (TRAFFIC_COUNT_SCHEMA, "traffic_count"),
+    # TMS feed: validated like every other source, quarantined on failure.
+    "inbound_shipment": (INBOUND_SHIPMENT_SCHEMA, "inbound_shipment"),
 }
 
 

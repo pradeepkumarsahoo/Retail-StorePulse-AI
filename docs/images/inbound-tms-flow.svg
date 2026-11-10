@@ -1,0 +1,154 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 560" role="img" aria-labelledby="t4 d4">
+<title id="t4">StorePulse-AI TMS integration — inbound trucks drive labor planning</title>
+<desc id="d4">The Transport Management System exports inbound DC-to-store shipments. Pandera validates them into the inbound_shipment mirror. A read-only, horizon-capped MCP-style TMS adapter exposes them through the typed tool gateway. The Inbound Logistics Planner agent reads the 5-day truck outlook and the deterministic labor-plan check, the Workforce Analyst adds forecast and rate context, the Operations Advisor drafts a policy-guarded recommendation, and a human reviewer approves it. Nothing is written back to the TMS or the schedule.</desc>
+<defs>
+  <marker id="arr4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+    <path d="M0 0L10 5L0 10z" fill="#7b86a3"/>
+  </marker>
+  <style>
+    .bg { fill: #ffffff; }
+    .ext  { fill: #fff7ed; stroke: #f97316; }
+    .data { fill: #fffbeb; stroke: #f59e0b; }
+    .node { fill: #f8fafc; stroke: #cbd5e1; }
+    .ai   { fill: #f5f3ff; stroke: #8b5cf6; }
+    .gate { fill: #f5f3ff; stroke: #8b5cf6; stroke-dasharray: 4 3; }
+    .user { fill: #ecfeff; stroke: #06b6d4; }
+    .bad  { fill: #fef2f2; stroke: #f43f5e; }
+    .title { font: 600 13px "Inter", system-ui, sans-serif; fill: #0b1220; }
+    .label { font: 400 11px "Inter", system-ui, sans-serif; fill: #475569; }
+    .tag   { font: 600 9.5px "JetBrains Mono", ui-monospace, monospace; fill: #64748b; letter-spacing: 0.1em; text-transform: uppercase; }
+    .mono  { font: 400 10.5px "JetBrains Mono", ui-monospace, monospace; fill: #475569; }
+    .arrow { stroke: #7b86a3; stroke-width: 1.4; fill: none; opacity: 0.75; }
+    .no    { stroke: #f43f5e; stroke-width: 1.4; fill: none; stroke-dasharray: 5 4; }
+    @media (prefers-color-scheme: dark) {
+      .bg { fill: #070914; }
+      .ext  { fill: rgba(249,115,22,0.12); stroke: #f97316; }
+      .data { fill: rgba(245,158,11,0.12); stroke: #f59e0b; }
+      .node { fill: rgba(255,255,255,0.03); stroke: rgba(255,255,255,0.16); }
+      .ai   { fill: rgba(139,92,246,0.14); stroke: #8b5cf6; }
+      .gate { fill: rgba(139,92,246,0.14); stroke: #8b5cf6; }
+      .user { fill: rgba(34,211,238,0.12); stroke: #06b6d4; }
+      .bad  { fill: rgba(244,63,94,0.12); stroke: #f43f5e; }
+      .title { fill: #e8ecf5; } .label { fill: #b7c0d4; } .tag { fill: #7b86a3; } .mono { fill: #b7c0d4; }
+    }
+  </style>
+</defs>
+<rect class="bg" width="960" height="560"/>
+
+<!-- Row 1: TMS → validate → mirror → adapter -->
+<g transform="translate(20,24)">
+  <rect class="ext" x="0" y="0" width="200" height="84" rx="10"/>
+  <text class="tag" x="14" y="20" fill="#f97316">External system of record</text>
+  <text class="title" x="14" y="42">Transport Management System</text>
+  <text class="label" x="14" y="60">DC → store trucks · planned arrival</text>
+  <text class="label" x="14" y="74">live ETA · status · pallets · delay</text>
+</g>
+<path class="arrow" d="M220 66L252 66" marker-end="url(#arr4)"/>
+
+<g transform="translate(256,24)">
+  <rect class="node" x="0" y="0" width="190" height="84" rx="10"/>
+  <text class="tag" x="14" y="20">Ingest · Pandera</text>
+  <text class="title" x="14" y="42">INBOUND_SHIPMENT_SCHEMA</text>
+  <text class="label" x="14" y="60">ids · statuses · delay = eta − planned</text>
+  <text class="label" x="14" y="74">failures → quarantine + reason</text>
+</g>
+<path class="arrow" d="M446 66L478 66" marker-end="url(#arr4)"/>
+<path class="arrow" d="M351 108L351 136" marker-end="url(#arr4)"/>
+<g transform="translate(256,140)">
+  <rect class="bad" x="0" y="0" width="190" height="34" rx="10"/>
+  <text class="label" x="14" y="22" fill="#f43f5e">quarantine (never dropped)</text>
+</g>
+
+<g transform="translate(482,24)">
+  <rect class="data" x="0" y="0" width="200" height="84" rx="10"/>
+  <text class="tag" x="14" y="20" fill="#f59e0b">Validated mirror</text>
+  <text class="title" x="14" y="42">inbound_shipment</text>
+  <text class="label" x="14" y="60">90 days history + 5-day lookahead</text>
+  <text class="label" x="14" y="74">read-only inside StorePulse</text>
+</g>
+<path class="arrow" d="M682 66L714 66" marker-end="url(#arr4)"/>
+
+<g transform="translate(718,24)">
+  <rect class="ai" x="0" y="0" width="222" height="84" rx="10"/>
+  <text class="tag" x="14" y="20" fill="#8b5cf6">MCP-style adapter · tms-inbound-shipments</text>
+  <text class="title" x="14" y="42">list_inbound_shipments</text>
+  <text class="label" x="14" y="60">get_inbound_shipment · get_tms_metadata</text>
+  <text class="label" x="14" y="74">horizon capped at 5 days · versioned</text>
+</g>
+
+<!-- Row 2: gateway -->
+<path class="arrow" d="M829 108L829 186" marker-end="url(#arr4)"/>
+<g transform="translate(20,190)">
+  <rect class="gate" x="0" y="0" width="920" height="54" rx="10"/>
+  <text class="tag" x="14" y="20" fill="#8b5cf6">Typed tool gateway · per-agent allowlist · scope check · Pydantic args · tool_call row per attempt</text>
+  <text class="mono" x="14" y="40">tms.shipments.list · tms.shipment.get · inbound.labor_plan_check · forecast.labor · kpi.splh · kpi.labor_cost_pct · mcp.labor_rate.get</text>
+</g>
+
+<!-- Row 3: deterministic check + agents -->
+<path class="arrow" d="M150 244L150 272" marker-end="url(#arr4)"/>
+<path class="arrow" d="M420 244L420 272" marker-end="url(#arr4)"/>
+<path class="arrow" d="M660 244L660 272" marker-end="url(#arr4)"/>
+<path class="arrow" d="M860 244L860 272" marker-end="url(#arr4)"/>
+
+<g transform="translate(20,276)">
+  <rect class="data" x="0" y="0" width="260" height="110" rx="10"/>
+  <text class="tag" x="14" y="20" fill="#f59e0b">Deterministic · code, not LLM</text>
+  <text class="title" x="14" y="42">inbound_labor_plan_check v1.0.0</text>
+  <text class="label" x="14" y="60">per day: trucks due · slipped · unload minutes</text>
+  <text class="label" x="14" y="74">vs forecast / scheduled labor minutes</text>
+  <text class="label" x="14" y="88">→ balanced · idle_risk · under_coverage</text>
+  <text class="label" x="14" y="102">→ no_inbound · insufficient_evidence (+ lineage)</text>
+</g>
+
+<g transform="translate(300,276)">
+  <rect class="ai" x="0" y="0" width="240" height="110" rx="10"/>
+  <text class="tag" x="14" y="20" fill="#8b5cf6">Specialist · new</text>
+  <text class="title" x="14" y="42">Inbound Logistics Planner</text>
+  <text class="label" x="14" y="60">5-day TMS outlook + plan check</text>
+  <text class="label" x="14" y="74">emits dated findings:</text>
+  <text class="label" x="14" y="88">"TRK-4069 slipped 10-14 → 10-15,</text>
+  <text class="label" x="14" y="102">325 receiving minutes at idle risk"</text>
+</g>
+
+<g transform="translate(560,276)">
+  <rect class="ai" x="0" y="0" width="200" height="110" rx="10"/>
+  <text class="tag" x="14" y="20" fill="#8b5cf6">Specialist</text>
+  <text class="title" x="14" y="42">Workforce Analyst</text>
+  <text class="label" x="14" y="60">labor forecast · SPLH</text>
+  <text class="label" x="14" y="74">labor cost % · MCP rate</text>
+  <text class="label" x="14" y="88">+ embedded 5-day plan check</text>
+  <text class="label" x="14" y="102">(every store investigation)</text>
+</g>
+
+<g transform="translate(780,276)">
+  <rect class="ai" x="0" y="0" width="160" height="110" rx="10"/>
+  <text class="tag" x="14" y="20" fill="#8b5cf6">Specialist</text>
+  <text class="title" x="14" y="42">Operations Advisor</text>
+  <text class="label" x="14" y="60">inbound evidence first</text>
+  <text class="label" x="14" y="74">drafts recommendation</text>
+  <text class="label" x="14" y="88">forbidden-language guard</text>
+  <text class="label" x="14" y="102">status = pending_review</text>
+</g>
+<path class="arrow" d="M280 331L300 331" marker-end="url(#arr4)"/>
+<path class="arrow" d="M540 331L560 331" marker-end="url(#arr4)"/>
+<path class="arrow" d="M760 331L780 331" marker-end="url(#arr4)"/>
+
+<!-- Row 4: human review + audit -->
+<path class="arrow" d="M860 386L860 414" marker-end="url(#arr4)"/>
+<g transform="translate(300,418)">
+  <rect class="user" x="0" y="0" width="640" height="48" rx="10"/>
+  <text class="title" x="14" y="22">Human review · /approvals.html</text>
+  <text class="label" x="14" y="40">"Re-sequence receiving work around slipped inbound trucks" → approved · in_progress · completed (human attests)</text>
+</g>
+<g transform="translate(20,418)">
+  <rect class="gate" x="0" y="0" width="260" height="48" rx="10"/>
+  <text class="tag" x="14" y="20" fill="#ec4899">Audit</text>
+  <text class="label" x="14" y="38">ai_run · tool_call[] · audit_event · approval_event</text>
+</g>
+
+<!-- Write-back is refused -->
+<path class="no" d="M940 442C960 300 960 120 940 66"/>
+<text class="label" x="760" y="500" fill="#f43f5e" font-weight="600">✕ no write-back to the TMS, the schedule, or payroll</text>
+<text class="label" x="20" y="500" font-weight="600">Business rule: see every truck 5 days before it lands, and plan labor around it.</text>
+<text class="label" x="20" y="520">Agents retrieve the TMS outlook. Code computes the join. Humans decide what changes. Synthetic TMS data is labelled synthetic.</text>
+</svg>

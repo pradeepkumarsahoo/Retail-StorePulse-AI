@@ -1,5 +1,6 @@
 """Load synthetic CSVs into the database via Pandera-validated ingest.
 
+Datasets: store, sales_txn, labor_hours, traffic_count, inbound_shipment (TMS feed).
 Also seeds metric_catalog (all v1 metrics) and labor_rate (from MCP server).
 
 Usage:
@@ -19,7 +20,8 @@ from packages.analytics.kpi_service import METRICS
 from services.labor_rate_mcp.server import seed_rates
 
 
-DATASETS = ["store", "sales_txn", "labor_hours", "traffic_count"]
+DATASETS = ["store", "sales_txn", "labor_hours", "traffic_count", "inbound_shipment"]
+TIMESTAMP_COLUMNS = ("ts_utc", "planned_arrival_utc", "eta_utc")
 
 
 def _seed_metric_catalog(engine) -> int:
@@ -47,7 +49,7 @@ def _reset_tables(engine) -> None:
         for table in ["approval_event", "recommendation", "tool_call", "ai_run",
                       "anomaly", "forecast", "forecast_run", "audit_event",
                       "quarantine", "sales_txn", "labor_hours", "traffic_count",
-                      "labor_rate", "metric_catalog", "store"]:
+                      "inbound_shipment", "labor_rate", "metric_catalog", "store"]:
             conn.execute(text(f"DELETE FROM {table}"))
 
 
@@ -66,8 +68,9 @@ def main() -> None:
         if not path.exists():
             raise SystemExit(f"Missing synthetic file: {path}")
         df = pd.read_csv(path)
-        if "ts_utc" in df.columns:
-            df["ts_utc"] = pd.to_datetime(df["ts_utc"], utc=True)
+        for col in TIMESTAMP_COLUMNS:
+            if col in df.columns:
+                df[col] = pd.to_datetime(df[col], utc=True)
         result = validate_and_load(engine, df, dataset)
         print(
             f"{dataset:14s}  loaded={result['loaded']:>7,}  "

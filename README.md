@@ -4,9 +4,10 @@
 > Governed, evidence-first decision intelligence for multi-store retailers.
 
 <p>
-<a href="#test-results">166 tests · all passing</a> ·
+<a href="#test-results">213 tests · all passing</a> ·
 <a href="#5-security-posture-owasp-aligned">OWASP-mapped controls</a> ·
-<a href="#4-agentic-architecture">5 specialist agents + supervisor</a> ·
+<a href="#agentic-architecture">6 specialist agents + supervisor</a> ·
+<a href="#tms-integration--inbound-labor-planning-v11">TMS inbound labor planning</a> ·
 <a href="#6-observability-logging--monitoring">JSON logs · Prometheus metrics</a> ·
 <a href="#7-human-in-the-loop-approval-workflow">Human-approved recommendations</a>
 </p>
@@ -18,6 +19,7 @@
 1. [Purpose](#1-purpose)
 2. [Problem statement](#2-problem-statement)
 3. [Proposed solution](#3-proposed-solution)
+   - [TMS integration & inbound labor planning (v1.1)](#tms-integration--inbound-labor-planning-v11)
 4. [Architecture](#4-architecture)
    - [System diagram](#system-architecture)
    - [Agentic architecture](#agentic-architecture)
@@ -62,25 +64,26 @@ Multi-store retailers run on data that never meets in one place. A regional mana
 | 7 | Forecasts ignore weather, events, local news | Lost sales on surge days, paid idle labor on collapse days |
 | 8 | Customer sentiment measured by occasional NPS | Frustrated shoppers go unnoticed until review/return/churn |
 
-StorePulse-AI's v1.0 attacks items **1–5** head-on with a trusted metric layer, constrained agents, and a review queue. Items 6–8 are explicit future scope.
+StorePulse-AI's v1.0 attacks items **1–5** head-on with a trusted metric layer, constrained agents, and a review queue. **v1.1 closes item 6** by joining the TMS 5-day truck outlook to the labor plan ([details](#tms-integration--inbound-labor-planning-v11)). Items 7–8 are explicit future scope.
 
 ---
 
 ## 3. Proposed solution
 
-A **modular monolith** with clean architecture and a strict trust boundary around the AI runtime. Nine capabilities land in sequence:
+A **modular monolith** with clean architecture and a strict trust boundary around the AI runtime. Capabilities land in sequence:
 
-| Capability | Status in v1.0 |
+| Capability | Status |
 |---|---|
-| Regional command center (8 KPIs with lineage) | ✅ shipped |
-| Workforce demand forecast (seasonal baseline + WAPE/MAE) | ✅ shipped |
-| Anomaly & exception feed (robust z-score + thresholds, evidence) | ✅ shipped |
-| Evidence-first agentic investigation (5 specialists + supervisor) | ✅ shipped |
-| Daily store manager briefing | ✅ shipped |
-| Human review & approval workflow | ✅ shipped |
-| Audit trail, metric catalog, model versioning | ✅ shipped |
-| MCP labor-rate reference server (in-process adapter) | ✅ shipped |
-| DC & truck tracking · external signals (weather/events) · camera sentiment | ⏳ future |
+| Regional command center (8 KPIs with lineage) | ✅ v1.0 |
+| Workforce demand forecast (seasonal baseline + WAPE/MAE) | ✅ v1.0 |
+| Anomaly & exception feed (robust z-score + thresholds, evidence) | ✅ v1.0 |
+| Evidence-first agentic investigation (specialists + supervisor) | ✅ v1.0 |
+| Daily store manager briefing | ✅ v1.0 |
+| Human review & approval workflow | ✅ v1.0 |
+| Audit trail, metric catalog, model versioning | ✅ v1.0 |
+| MCP labor-rate reference server (in-process adapter) | ✅ v1.0 |
+| **TMS integration & inbound labor planning** (5-day truck outlook ↔ labor plan, 6th specialist) | ✅ v1.1 |
+| Live TMS vendor API / telematics ETA · external signals (weather/events) · camera sentiment | ⏳ future |
 
 Design pillars ("principles that shape every build decision"):
 
@@ -90,6 +93,43 @@ Design pillars ("principles that shape every build decision"):
 4. **Least-privilege tools.** Agents reach the world only through a typed, allowlisted gateway. Tool descriptions aren't security — authorization is.
 5. **Responsible workforce AI.** No individual employee scoring, ranking, or surveillance. Forecasts estimate workload, not punish people.
 6. **Honest status.** Synthetic data is labeled synthetic. Opportunity estimates are labeled estimates. Compliance claims require independent assessment.
+
+### TMS integration & inbound labor planning (v1.1)
+
+**The problem.** Store labor plans are built days ahead, but DC trucks slip, arrive early, or get cancelled. When a truck slips, receiving hours are paid for with nothing to unload. When two heavy loads land on the same morning, the plan can't absorb them and the floor goes uncovered. The Transport Management System (TMS) knows about the slip. The labor plan doesn't.
+
+**What v1.1 adds.** StorePulse mirrors the TMS feed read-only and joins it, per store and per day, to the labor plan for the next 5 days.
+
+![TMS inbound flow](docs/images/inbound-tms-flow.svg)
+
+| Piece | Where | What it does |
+|---|---|---|
+| TMS feed → validation → mirror | [`scripts/generate_data.py`](scripts/generate_data.py), [`packages/validation/schemas.py`](packages/validation/schemas.py) | Synthetic TMS feed (144 shipments on seed 42). A Pandera contract (unique shipment ids, `delay_minutes == eta − planned`, status enum) quarantines bad rows with a reason code before they reach the `inbound_shipment` table. |
+| TMS adapter (MCP-style) | [`services/tms_mcp/server.py`](services/tms_mcp/server.py) | Read-only tools `list_inbound_shipments` and `get_inbound_shipment`. The look-ahead is hard-capped at **5 days** (`STOREPULSE_TMS_HORIZON_DAYS`). StorePulse never writes to the TMS. |
+| `inbound_labor_plan_check` | [`packages/inbound_planning/service.py`](packages/inbound_planning/service.py) | Deterministic per-day join of trucks to planned labor. Returns a status per day with a full lineage block (formula, assumptions, thresholds, source rows). |
+| Inbound Logistics Planner (6th specialist) | [`packages/ai_orchestration/agents/inbound_logistics.py`](packages/ai_orchestration/agents/inbound_logistics.py) | Calls `tms.shipments.list` → `inbound.labor_plan_check` → `forecast.labor` through the tool gateway and explains where trucks and labor disagree. It never computes the join itself (ADR-0014). |
+| `plan_inbound_labor` workflow | [`packages/ai_orchestration/supervisor.py`](packages/ai_orchestration/supervisor.py) | Inbound planner (3 tool calls) → Store Performance (9) → Workforce (5) → Operations Advisor → a `pending_review` recommendation in the approval queue. 17-step evidence trail, one `ai_run` + audit event. |
+| API + Inbound screen | [`apps/api/routers/inbound.py`](apps/api/routers/inbound.py), [`apps/api/static/inbound.html`](apps/api/static/inbound.html) | Shipments, the 5-day plan check, and a one-click AI plan. |
+
+**Day statuses** returned by the check:
+
+| Status | Rule |
+|---|---|
+| `idle_risk` | A truck planned for this day slipped to another day or was cancelled, so receiving hours are planned with nothing to unload. |
+| `under_coverage` | Heavy day: unload minutes ÷ labor planned in the 09:00–12:00 receiving window > **35%**. |
+| `balanced` | Trucks are due and the receiving window can absorb them. |
+| `no_inbound` | No trucks due. |
+| `insufficient_evidence` | No labor plan for the day. The check returns this instead of guessing. |
+
+Same-day slips of 2 h or more are attached as `late` evidence. Labor comes from the published labor-minute forecast and falls back to scheduled `labor_hours`.
+
+**The Inbound screen** (`/inbound.html`):
+
+| 5-day board | AI inbound plan | Heavy-day detail |
+|---|---|---|
+| ![Inbound board](docs/images/inbound-tms-board.png) | ![AI inbound plan](docs/images/inbound-tms-ai-plan.png) | ![Heavy day](docs/images/inbound-tms-heavy-day.png) |
+
+**Guardrails.** The workflow is read-only on both the TMS and the schedule. It estimates workload and never names, ranks, or schedules an individual employee. Every recommendation goes to a human reviewer. Design rationale: [ADR-0013 and ADR-0014](docs/DECISIONS.md).
 
 ---
 
@@ -105,7 +145,7 @@ Four logical layers in a single deployable:
 - **API & Application** — FastAPI `/api/v1`, Pydantic contracts, demo bearer auth, RBAC + region/store scope on every endpoint, correlation IDs, structured errors.
 - **Core pillars**
   - *Analytics* — 8 KPIs with central metric catalog + lineage. Forecasting (seasonal baseline). Anomaly detection (robust z-score + thresholds).
-  - *AI orchestration* — supervisor + 5 specialists. Typed tool gateway with per-agent allowlists. Deterministic LLM provider (production provider pluggable).
+  - *AI orchestration* — supervisor + 6 specialists. Typed tool gateway with per-agent allowlists. Deterministic LLM provider (production provider pluggable).
   - *Governance* — audit event stream, approval workflow, metric/prompt/model versioning.
 - **Data layer** — SQLAlchemy on SQLite (ANSI-SQL; Postgres swap in M7). Pandera validation at ingest, quarantine with reason codes.
 - **External · MCP adapter** — read-only Labor Rate Reference server exposing `get_labor_rate`, `list_labor_rate_regions`, `get_labor_rate_metadata`.
@@ -388,6 +428,7 @@ python -m scripts.generate_data --seed 42 --days 90   # deterministic synthetic 
 python -m scripts.load_db                             # Pandera-validated ingest + seed catalog
 python -m scripts.run_forecast --horizon-days 14      # fit seasonal baseline + evaluate WAPE/MAE
 python -m scripts.run_anomalies --days 30             # robust-zscore + coverage-gap detection
+python -m scripts.run_inbound_check --as-of 2026-10-12  # TMS trucks ↔ labor plan, next 5 days per store
 ```
 
 Then start the service:
@@ -398,11 +439,12 @@ python -m uvicorn apps.api.main:app --port 8000
 
 ### Agent workflows
 
-Four composable triggers — each creates an `ai_run` with full audit trail:
+Five composable triggers — each agent run creates an `ai_run` with full audit trail:
 
 | Trigger | Endpoint |
 |---|---|
 | Investigate a store (full KPI + workforce + advisor) | `POST /api/v1/agents/investigate-store` |
+| Plan inbound receiving labor from the TMS 5-day outlook | `POST /api/v1/agents/plan-inbound-labor` |
 | Investigate a specific anomaly (hypothesis ranking) | `POST /api/v1/agents/investigate-anomaly` |
 | Generate a daily store briefing | `POST /api/v1/agents/briefing` |
 | Approve / reject / start / complete a recommendation | `POST /api/v1/recommendations/:id/review` |
@@ -451,11 +493,19 @@ Full OpenAPI at `http://localhost:8000/docs`. Highlights:
 | GET | `/api/v1/anomalies?store_id=&status=&limit=` |
 | GET | `/api/v1/anomalies/{anomaly_id}` |
 
+**Inbound (TMS)** — `horizon_days` is 1–5; anything larger returns 422
+
+| Method | Path |
+|---|---|
+| GET | `/api/v1/stores/{store_id}/inbound/shipments?from=&to=` |
+| GET | `/api/v1/stores/{store_id}/inbound/labor-plan?as_of=&horizon_days=` |
+
 **Agents**
 
 | Method | Path |
 |---|---|
 | POST | `/api/v1/agents/investigate-store?store_id=&from=&to=` |
+| POST | `/api/v1/agents/plan-inbound-labor?store_id=&as_of=&horizon_days=` |
 | POST | `/api/v1/agents/investigate-anomaly?anomaly_id=` |
 | POST | `/api/v1/agents/briefing?store_id=&as_of_utc=` |
 
@@ -504,14 +554,17 @@ python -m scripts.run_forecast --horizon-days 14
 # 5. Run anomaly detection over the last 30 days
 python -m scripts.run_anomalies --days 30
 
-# 6. Run the full test suite (166 tests)
+# 6. Check TMS inbound trucks against the labor plan (next 5 days, every store)
+python -m scripts.run_inbound_check --as-of 2026-10-12
+
+# 7. Run the full test suite (213 tests)
 python -m pytest tests/ -v
 
-# 7. Start the API + UI
+# 8. Start the API + UI
 python -m uvicorn apps.api.main:app --port 8000
 ```
 
-Open `http://localhost:8000/` for the Regional Command Center tile, `/investigation.html` for agent investigations, `/approvals.html` for the human review queue.
+Open `http://localhost:8000/` for the Regional Command Center tile, `/inbound.html` for the TMS inbound board, `/investigation.html` for agent investigations, `/approvals.html` for the human review queue.
 
 ### Live smoke test
 
@@ -523,6 +576,15 @@ curl -s -H "Authorization: Bearer demo-admin" \
 curl -s -X POST -H "Authorization: Bearer demo-admin" \
   "http://localhost:8000/api/v1/agents/investigate-store?store_id=S001&from=2026-09-24T00:00:00Z&to=2026-10-01T00:00:00Z"
 # -> {"run_id":"...", "status":"ok", "step_count":13, "output":{...}}
+
+curl -s -H "Authorization: Bearer demo-admin" \
+  "http://localhost:8000/api/v1/stores/S001/inbound/labor-plan?as_of=2026-10-12T00:00:00Z"
+# -> {"store_id":"S001","window":{...,"horizon_days":5},"days":[{"date":"2026-10-12","status":"balanced",...}]}
+
+curl -s -X POST -H "Authorization: Bearer demo-admin" \
+  "http://localhost:8000/api/v1/agents/plan-inbound-labor?store_id=S001&as_of=2026-10-12T00:00:00Z"
+# -> {"run_id":"...", "status":"ok", "step_count":17, "output":{"inbound_logistics":{...}, ...}}
+#    and a "Re-sequence receiving work around slipped inbound trucks" recommendation in /approvals.html
 ```
 
 ---
@@ -532,45 +594,48 @@ curl -s -X POST -H "Authorization: Bearer demo-admin" \
 ### Test results
 
 ```
-tests\integration\test_api_agents_e2e.py ..                              [  1%]
-tests\integration\test_api_kpis_and_security.py .........                [  6%]
-tests\integration\test_api_splh.py ........                              [ 11%]
-tests\security\test_prompt_injection.py ..                               [ 12%]
-tests\unit\test_agents.py ..............                                 [ 21%]
+tests\integration\test_api_agents_e2e.py ..                              [  0%]
+tests\integration\test_api_inbound.py .......                            [  4%]
+tests\integration\test_api_kpis_and_security.py .........                [  8%]
+tests\integration\test_api_splh.py ........                              [ 12%]
+tests\security\test_prompt_injection.py ..                               [ 13%]
+tests\unit\test_agents.py .....................                          [ 23%]
 tests\unit\test_all_kpis.py ..........                                   [ 27%]
 tests\unit\test_anomaly_detector.py ..                                   [ 28%]
-tests\unit\test_anomaly_extras.py .........                              [ 33%]
-tests\unit\test_approval_workflow.py ....                                [ 36%]
-tests\unit\test_audit.py .......                                         [ 40%]
-tests\unit\test_domain_entities.py ......                                [ 43%]
-tests\unit\test_fake_llm.py ..                                           [ 45%]
-tests\unit\test_forecast_baseline.py ....                                [ 47%]
-tests\unit\test_forecast_service.py ....                                 [ 50%]
-tests\unit\test_generator_determinism.py ..                              [ 51%]
-tests\unit\test_ingest.py .....                                          [ 54%]
-tests\unit\test_kpi_masters.py .....                                     [ 57%]
+tests\unit\test_anomaly_extras.py .........                              [ 32%]
+tests\unit\test_approval_workflow.py ....                                [ 34%]
+tests\unit\test_audit.py .......                                         [ 38%]
+tests\unit\test_domain_entities.py ......                                [ 40%]
+tests\unit\test_fake_llm.py ..                                           [ 41%]
+tests\unit\test_forecast_baseline.py ....                                [ 43%]
+tests\unit\test_forecast_service.py ....                                 [ 45%]
+tests\unit\test_generator_determinism.py ...                             [ 46%]
+tests\unit\test_inbound_planning.py ..........                           [ 51%]
+tests\unit\test_inbound_schema.py .....                                  [ 53%]
+tests\unit\test_ingest.py .....                                          [ 56%]
+tests\unit\test_kpi_masters.py .....                                     [ 58%]
 tests\unit\test_logging.py .........                                     [ 62%]
-tests\unit\test_mcp_labor_rate.py ......                                 [ 66%]
-tests\unit\test_metrics.py ......                                        [ 69%]
-tests\unit\test_pandera_schemas.py ...                                   [ 71%]
-tests\unit\test_recommendations_list.py ........                         [ 76%]
-tests\unit\test_security.py ..............                               [ 84%]
-tests\unit\test_splh_math.py .....                                       [ 87%]
-tests\unit\test_supervisor.py .......                                    [ 92%]
-tests\unit\test_tool_gateway.py ....                                     [ 94%]
-tests\unit\test_tool_gateway_more.py .........                           [100%]
-
-====================== 166 passed, 1 warning in 26.46s ========================
+tests\unit\test_mcp_labor_rate.py ......                                 [ 65%]
+tests\unit\test_metrics.py ......                                        [ 68%]
+tests\unit\test_pandera_schemas.py ...                                   [ 69%]
+tests\unit\test_recommendations_list.py ........                         [ 73%]
+tests\unit\test_security.py ..............                               [ 80%]
+tests\unit\test_splh_math.py .....                                       [ 82%]
+tests\unit\test_supervisor.py ..........                                 [ 87%]
+tests\unit\test_tms_mcp.py ........                                      [ 91%]
+tests\unit\test_tool_gateway.py ....                                     [ 92%]
+tests\unit\test_tool_gateway_more.py ...............                     [100%]
+====================== 213 passed, 1 warning in 46.23s ========================
 ```
 
 ### Test totals
 
 | Suite | Count |
 |---|---|
-| Unit — `tests/unit/` (26 files) | **145** |
-| Integration — `tests/integration/` | **19** |
+| Unit — `tests/unit/` (26 files) | **185** |
+| Integration — `tests/integration/` (4 files) | **26** |
 | Security — `tests/security/` | **2** |
-| **Total** | **166** |
+| **Total** | **213** |
 
 ### What's covered — unit tests
 
@@ -591,10 +656,14 @@ Every module in `packages/`, `services/`, `infrastructure/`, and `apps/api/` has
 | **Observability — logging** | [`test_logging.py`](tests/unit/test_logging.py) | Correlation-id round-trip, thread-local isolation, `JsonFormatter` fields/extras/exception-info/single-line JSON, `configure_logging` replaces handlers and reads `STOREPULSE_LOG_LEVEL`. |
 | **RBAC primitives** | [`test_security.py`](tests/unit/test_security.py) | Every path through `principal_can_see_store` (wildcard region/store, explicit region/store, no-match deny). `ensure_store_access` raises 403. `authenticate` missing/wrong-scheme/unknown-token → 401. `require_role` deny/allow. `APPROVER_ROLES` invariant (no store_manager). |
 | **MCP labor-rate server** | [`test_mcp_labor_rate.py`](tests/unit/test_mcp_labor_rate.py) | Versioned record returned, unknown region/role rejected, malformed effective date rejected by Pydantic, unknown tool rejected, metadata correct. |
+| **TMS adapter** | [`test_tms_mcp.py`](tests/unit/test_tms_mcp.py) | Tool listing, store-scoped results, 5-day horizon cap, slipped trucks found by planned *or* ETA day, unknown shipment / unknown tool rejected, metadata declares read-only. |
+| **TMS data contract** | [`test_inbound_schema.py`](tests/unit/test_inbound_schema.py) | `delay_minutes` must equal ETA − planned, unknown status / cases without pallets / bad ids quarantined, good rows in a mixed batch kept. |
+| **Inbound labor-plan check** | [`test_inbound_planning.py`](tests/unit/test_inbound_planning.py) | `balanced`, `idle_risk` (slipped *and* cancelled trucks), `under_coverage` on heavy days, `no_inbound`, `insufficient_evidence` instead of a guess, forecast preferred over schedule, horizon bounds, complete lineage block. |
 | **Tool gateway** | [`test_tool_gateway.py`](tests/unit/test_tool_gateway.py), [`test_tool_gateway_more.py`](tests/unit/test_tool_gateway_more.py) | Unknown tool → `ToolNotFound`. Out-of-allowlist → `ToolDenied`. Cross-store scope → `ToolDenied`. Bad Pydantic args → `ToolInvocationError`. Metric counters incremented for `ok` / `denied` / `error`. MCP proxied. `stores.list` filtered to principal scope. Every attempt records a `tool_call` row with `seq`, `agent_name`, `status`. |
 | **LLM provider** | [`test_fake_llm.py`](tests/unit/test_fake_llm.py) | Byte-stable deterministic output; empty evidence emits "insufficient" message. |
-| **Supervisor orchestration** | [`test_supervisor.py`](tests/unit/test_supervisor.py) | Each workflow (`investigate_store`, `investigate_anomaly`, `daily_briefing`) writes exactly one `ai_run` row + one audit entry. Unknown store / missing anomaly → `status="error"` persisted. `RunBudget(max_steps)` enforced. Token counting from the LLM provider. |
-| **Agent specialists** | [`test_agents.py`](tests/unit/test_agents.py) | `store_performance`: all 7 KPIs + 2 prior-window calls, `last_seq` arithmetic, `sales_change_pct` derived. `workforce`: all tools called, forecast capped at 24 points. `operations_advisor`: decision table (down/up/neutral/unknown) + forbidden-term policy check. `briefing`: narrative composed, LLM model stamp, window = prior day. `anomaly_investigator`: hypothesis ranking + fallback. |
+| **Supervisor orchestration** | [`test_supervisor.py`](tests/unit/test_supervisor.py) | Each workflow (`investigate_store`, `plan_inbound_labor`, `investigate_anomaly`, `daily_briefing`) writes exactly one `ai_run` row + one audit entry. `plan_inbound_labor` runs inbound → store performance → workforce → advisor. Unknown store / missing anomaly → `status="error"` persisted. `RunBudget(max_steps)` enforced. Token counting from the LLM provider. |
+| **Agent specialists** | [`test_agents.py`](tests/unit/test_agents.py) | `store_performance`: all 7 KPIs + 2 prior-window calls, `last_seq` arithmetic, `sales_change_pct` derived. `workforce`: all tools called, forecast capped at 24 points. `operations_advisor`: decision table (down/up/neutral/unknown) + forbidden-term policy check. `briefing`: narrative composed, LLM model stamp, window = prior day. `anomaly_investigator`: hypothesis ranking + fallback. `inbound_logistics`: reads TMS + plan check, emits idle-risk findings. Advisor: receiving-coverage plan for heavy days, inbound evidence outranks the sales trend. |
+| **Inbound API + workflow** | `tests/integration/test_api_inbound.py` | Shipments and labor-plan endpoints return lineage, `horizon_days=6` → 422, West manager can't read Midwest trucks, store manager sees only their own store, `plan-inbound-labor` creates a `pending_review` recommendation and is scope-checked. |
 | **End-to-end agent flow** | `tests/integration/test_api_agents_e2e.py` | Investigate → `ai_run` + `tool_call[]` + `audit_event` → `recommendation` → reviewer approves → admin starts & completes. Store manager gets 403 on `/review`. |
 | **BOLA / BFLA** | `tests/integration/test_api_kpis_and_security.py` | West manager cannot see Midwest stores. S001 manager cannot see S002. Store manager cannot approve. Invalid token → 401. |
 | **Prompt injection** | `tests/security/test_prompt_injection.py` | Hostile user text cannot change deterministic-provider output. Hostile reviewer comment cannot force an invalid workflow transition. |
@@ -609,17 +678,18 @@ Retail-StorePulse-AI/
 │   ├── main.py                       # FastAPI entrypoint, middleware
 │   ├── dependencies.py               # Engine + LLM + supervisor DI
 │   ├── security.py                   # Demo auth, RBAC scope helpers
-│   ├── routers/                      # kpi, forecast, anomaly, agents, recommendations, audit, metrics
-│   └── static/                       # index.html, investigation.html, approvals.html, styles.css
+│   ├── routers/                      # kpi, forecast, inbound (TMS), anomaly, agents, recommendations, audit, metrics
+│   └── static/                       # index.html, inbound.html, investigation.html, approvals.html, styles.css
 ├── packages/
 │   ├── domain/                       # Pure-Python entities
 │   ├── analytics/                    # KPI service (8 metrics) + central catalog
 │   ├── forecasting/                  # Seasonal baseline + evaluator
 │   ├── anomaly_detection/            # Robust z-score + coverage-gap detector
+│   ├── inbound_planning/             # TMS trucks ↔ labor plan check (per day, with lineage)
 │   ├── ai_orchestration/
 │   │   ├── supervisor.py
 │   │   ├── llm_provider.py           # Abstract + DeterministicProvider
-│   │   └── agents/                   # 5 specialists
+│   │   └── agents/                   # 6 specialists (incl. inbound_logistics)
 │   ├── tool_gateway/
 │   │   ├── tools.py                  # Typed, allowlisted tools
 │   │   └── gateway.py                # Enforcement, recording
@@ -633,14 +703,16 @@ Retail-StorePulse-AI/
 │   └── validation/                   # Pandera dataframe schemas
 ├── services/labor_rate_mcp/
 │   └── server.py                     # MCP-style read-only adapter + seed_rates()
+├── services/tms_mcp/
+│   └── server.py                     # MCP-style read-only TMS adapter, 5-day horizon cap
 ├── infrastructure/db/                # SQLAlchemy models, engine, ingest
-├── scripts/                          # generate_data, load_db, run_forecast, run_anomalies
+├── scripts/                          # generate_data, load_db, run_forecast, run_anomalies, run_inbound_check
 ├── data/synthetic/                   # Generator output (gitignored)
 ├── tests/
-│   ├── unit/                         # 145 tests across 26 files: KPI math, domain, forecasting, anomaly, ingest,
+│   ├── unit/                         # 185 tests across 26 files: KPI math, domain, forecasting, anomaly, ingest,
 │   │                                 #   tool gateway, MCP, LLM, approvals, audit, metrics, logging, RBAC,
 │   │                                 #   supervisor orchestration, each agent specialist
-│   ├── integration/                  # 19 API/agent tests incl. BOLA/BFLA
+│   ├── integration/                  # 26 API/agent tests incl. BOLA/BFLA
 │   └── security/                     # 2 tests — prompt injection, workflow abuse
 ├── docs/
 │   ├── images/                       # Inline SVG diagrams for this README
@@ -685,13 +757,14 @@ See [`docs/DECISIONS.md`](docs/DECISIONS.md) for every ADR and its trade-offs.
 - 8 KPIs with full lineage. Metric catalog seeded.
 - Seasonal workforce forecast (WAPE ≈ 4.2% on the synthetic fixture).
 - Robust-z anomaly detection (220 anomalies flagged across 30 days).
-- 5 specialist agents + supervisor with step/token/time budgets.
+- 6 specialist agents + supervisor (4 workflows) with step/token/time budgets.
+- TMS inbound feed (144 shipments) mirrored read-only through an MCP-style adapter capped at 5 days, joined per day to the labor plan to flag idle-risk and heavy receiving days.
 - Typed tool gateway with per-agent allowlists; every call audited.
 - MCP-style labor-rate reference server with 8 synthetic rates.
 - Human approval workflow with state machine, approval events, audit events.
 - Demo auth (bearer) with RBAC + region/store scope on every endpoint.
 - Structured JSON logs + Prometheus-text `/metrics`.
-- Static UI: Regional, Investigation, Approvals.
+- Static UI: Regional, Inbound (TMS), Investigation, Approvals.
 
 **Honest gaps:**
 
@@ -701,7 +774,8 @@ See [`docs/DECISIONS.md`](docs/DECISIONS.md) for every ADR and its trade-offs.
 - **MCP uses an in-process adapter**, not the official stdio/sse SDK transport. Shape is identical; swap is M7.
 - **Postgres is M7**, SQLite today. ANSI-SQL keeps the port cheap.
 - **Synthetic labor model is intentionally generous** (SPLH ≈ $13/hr on seed=42). Demand-shaped labor baselines land in a later milestone.
-- **No external signals** (weather/events) or **DC/truck tracking** or **camera sentiment**. Problem cards 06-08 are explicit future scope.
+- **TMS feed is synthetic.** The adapter contract is ready for a live TMS vendor API, but there is no live feed or telematics GPS ETA yet. Receiving labor uses the TMS `unload_minutes_est`, not measured unload times.
+- **No external signals** (weather/events) or **camera sentiment**. These are explicit future scope.
 - **AI_GOVERNANCE.md, SECURITY_THREAT_MODEL.md, OWASP_CONTROL_MAPPING.md**: scaffolded but not formally signed-off. The controls themselves ship in v1.0; the formal review is M6.
 
 ---
@@ -714,7 +788,7 @@ See [`docs/DECISIONS.md`](docs/DECISIONS.md) for every ADR and its trade-offs.
 | **M7 — Release hardening** | Docker Compose, Postgres migration, TLS, OIDC drop-in, MCP SDK stdio transport, full CI pipeline |
 | **M8 — Frontend** | React + Vite application covering all 11 screens, accessibility, responsive |
 | **M9 — External signals** | Weather, event, transit, curated news feed with confidence scoring and auditable forecast adjusters |
-| **M10 — DC & truck tracking** | Live outbound-load view joined to shift plan; coverage-gap re-projection for inbound truck ETAs |
+| **M10 — Live DC & truck tracking** | Live TMS vendor API and telematics ETA behind the v1.1 adapter; outbound-load view; intraday re-projection as ETAs move |
 | **M11 — Privacy-preserving camera sentiment** | Opt-in edge-inference computer vision, per-zone/per-hour service score, coaching nudges — *never* individual-employee scoring |
 
 ---

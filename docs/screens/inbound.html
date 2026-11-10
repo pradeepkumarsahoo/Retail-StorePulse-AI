@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Inbound · StorePulse-AI</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="styles.css">
+<style>
+  .day-board { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; }
+  @media (max-width: 880px) { .day-board { grid-template-columns: 1fr 1fr; } }
+  .day { padding: 14px 16px; border-radius: var(--r-md); border: 1px solid var(--paper-edge); background: var(--paper-raised); }
+  .day .d { font-family: var(--f-mono); font-size: 10.5px; color: var(--muted); letter-spacing: 0.08em; }
+  .day .s { font-family: var(--f-body); font-weight: 600; font-size: 13px; margin: 4px 0 10px; text-transform: uppercase; letter-spacing: 0.06em; }
+  .day .r { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); padding: 3px 0; border-top: 1px dashed var(--rule); }
+  .day .r b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .day.ok .s { color: var(--good); }
+  .day.heavy { background: var(--amber-soft); border-color: rgba(197,120,0,0.35); } .day.heavy .s { color: var(--amber); }
+  .day.idle { background: var(--critical-soft); border-color: rgba(208,58,30,0.4); } .day.idle .s { color: var(--critical); }
+  .day.none .s { color: var(--muted); }
+  .day .r.risk b { color: var(--critical); }
+  .rec { padding: 18px 20px; border-left: 3px solid var(--teal); background: var(--teal-soft); border-radius: 0 var(--r-md) var(--r-md) 0; }
+  .rec h3 { margin: 0 0 6px; font-family: var(--f-display); font-weight: 500; font-size: 18px; }
+  .rec p { margin: 0; font-size: 13.5px; color: var(--ink); line-height: 1.55; }
+  .rec .meta { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .steps { list-style: none; padding: 0; margin: 0; font-size: 13px; }
+  .steps li { display: flex; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--rule); align-items: baseline; }
+  .steps li:last-child { border-bottom: 0; }
+  .steps .n { font-family: var(--f-mono); font-size: 10.5px; color: var(--accent); min-width: 28px; }
+  .steps code { font-family: var(--f-mono); font-size: 11px; color: var(--accent); }
+</style>
+</head>
+<body>
+
+<svg hidden xmlns="http://www.w3.org/2000/svg"><defs>
+<symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+<symbol id="i-store" viewBox="0 0 24 24"><path d="M3 9l1-5h16l1 5"/><path d="M4 9v11h16V9"/><path d="M9 14h6"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+<symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"/><path d="M19 14l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/></symbol>
+<symbol id="i-layers" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></symbol>
+<symbol id="i-truck" viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></symbol>
+<symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.74V17h8v-2.26A7 7 0 0 0 12 2z"/></symbol>
+<symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></symbol>
+<symbol id="i-clipboard" viewBox="0 0 24 24"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M8 11h8M8 15h8"/></symbol>
+</defs></svg>
+
+<nav class="topnav">
+  <a href="index.html" class="nav-brand">
+    <svg class="nav-mark" viewBox="0 0 28 28" aria-hidden="true">
+      <rect x="2" y="12" width="4" height="12" fill="var(--teal)"/>
+      <rect x="8" y="7" width="4" height="17" fill="var(--accent)"/>
+      <rect x="14" y="10" width="4" height="14" fill="var(--teal)"/>
+      <rect x="20" y="4" width="4" height="20" fill="var(--accent)"/>
+    </svg>
+    StorePulse<em>·</em>AI
+  </a>
+  <div class="nav-links">
+    <a href="index.html" class="nav-link"><svg class="ico"><use href="#i-grid"/></svg>Demo</a>
+    <a href="regional.html" class="nav-link"><svg class="ico"><use href="#i-layers"/></svg>Regional</a>
+    <a href="store.html" class="nav-link"><svg class="ico"><use href="#i-store"/></svg>Store</a>
+    <a href="anomaly.html" class="nav-link"><svg class="ico"><use href="#i-search"/></svg>Investigate</a>
+    <a href="workforce.html" class="nav-link"><svg class="ico"><use href="#i-users"/></svg>Workforce</a>
+    <a href="inbound.html" class="nav-link active"><svg class="ico"><use href="#i-truck"/></svg>Inbound</a>
+    <a href="briefing.html" class="nav-link"><svg class="ico"><use href="#i-sun"/></svg>Briefing</a>
+  </div>
+  <div class="nav-user">
+    <div class="who"><strong>Alex Chen</strong>Regional · Chicago</div>
+    <div class="avatar">AC</div>
+    <button class="theme-btn" id="themeBtn"><svg class="ico"><use href="#i-sun"/></svg>Theme</button>
+  </div>
+</nav>
+
+<div class="wrap">
+  <div class="page-head">
+    <div>
+      <div class="page-eyebrow">Screen 06 · Inbound logistics · TMS integration</div>
+      <h1 class="page-title">Trucks <em>five days out</em>, joined to the labor plan · Store #042</h1>
+      <div class="page-sub">Wed Nov 4 → Sun Nov 8, 2026 · Transport Management System (TMS) outlook vs forecast labor, per day. Read-only mirror of the TMS; nothing is written back.</div>
+    </div>
+    <div class="page-meta">
+      <span class="ai-badge"><svg class="ico"><use href="#i-sparkles"/></svg>Agent-assisted</span><br>
+      <strong>Source</strong> tms-inbound-shipments@1.0.0 · synced 06:10<br>
+      <strong>Horizon</strong> 5 days (cap) · daily
+    </div>
+  </div>
+
+  <div class="problem-banner">
+    <span class="tag"><svg class="ico"><use href="#i-bulb"/></svg>Problem this solves</span>
+    <p><strong>TMS disconnected from labor planning.</strong> The TMS knows on Monday that Thursday's truck will slip to Friday; the store finds out Thursday at 7am, after the receiving crew has clocked in. This screen pulls the 5-day truck outlook into the plan so idle hours are predicted and re-sequenced <em>before</em> the day starts — no employee is named, no schedule is auto-changed.</p>
+  </div>
+
+  <div class="kpi-row">
+    <div class="kpi"><div class="k-label"><svg class="ico"><use href="#i-truck"/></svg>Trucks in window</div><div class="k-value">6</div><div class="k-delta flat">2 DCs · 3 carriers</div></div>
+    <div class="kpi"><div class="k-label"><svg class="ico"><use href="#i-calendar"/></svg>Idle-risk days</div><div class="k-value">1</div><div class="k-delta down">Thu Nov 5 · truck rolled to Fri</div></div>
+    <div class="kpi"><div class="k-label"><svg class="ico"><use href="#i-users"/></svg>Receiving minutes at risk</div><div class="k-value">325</div><div class="k-delta down">≈ 5.4 labor hours</div></div>
+    <div class="kpi"><div class="k-label"><svg class="ico"><use href="#i-clipboard"/></svg>Heavy inbound days</div><div class="k-value">1</div><div class="k-delta flat">Sat Nov 7 · 2 trailers · 67% share</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2 class="panel-h"><svg class="ico"><use href="#i-calendar"/></svg>Labor plan vs inbound trucks</h2>
+      <div class="panel-sub">inbound_labor_plan_check v1.0.0 · labor source: forecast · receiving window 09–12</div>
+    </div>
+    <div class="day-board">
+      <div class="day ok"><div class="d">WED 11-04</div><div class="s">Balanced</div>
+        <div class="r"><span>trucks due</span><b>1</b></div><div class="r"><span>unload est.</span><b>275 min</b></div><div class="r"><span>receiving window</span><b>1,597 min</b></div><div class="r"><span>receiving share</span><b>17%</b></div></div>
+      <div class="day idle"><div class="d">THU 11-05</div><div class="s">Idle risk</div>
+        <div class="r"><span>trucks due</span><b>0</b></div><div class="r"><span>slipped</span><b>1</b></div><div class="r"><span>receiving window</span><b>1,618 min</b></div><div class="r risk"><span>idle minutes at risk</span><b>325</b></div></div>
+      <div class="day ok"><div class="d">FRI 11-06</div><div class="s">Balanced</div>
+        <div class="r"><span>trucks due</span><b>1</b></div><div class="r"><span>unload est.</span><b>325 min</b></div><div class="r"><span>receiving window</span><b>1,618 min</b></div><div class="r"><span>receiving share</span><b>20%</b></div></div>
+      <div class="day heavy"><div class="d">SAT 11-07</div><div class="s">Heavy inbound</div>
+        <div class="r"><span>trucks due</span><b>2</b></div><div class="r"><span>unload est.</span><b>625 min</b></div><div class="r"><span>receiving window</span><b>940 min</b></div><div class="r"><span>receiving share</span><b>67%</b></div></div>
+      <div class="day none"><div class="d">SUN 11-08</div><div class="s">No inbound</div>
+        <div class="r"><span>trucks due</span><b>0</b></div><div class="r"><span>unload est.</span><b>0 min</b></div><div class="r"><span>receiving window</span><b>942 min</b></div><div class="r"><span>receiving share</span><b>0%</b></div></div>
+    </div>
+    <div class="note">Deterministic join (code, not LLM). <em>Idle risk</em>: a truck planned for the day slipped or was cancelled. <em>Heavy inbound</em>: unload work &gt; 35% of labor planned for the morning receiving window. Days without a labor plan are reported as insufficient evidence, never guessed.</div>
+  </div>
+
+  <div class="split">
+    <div class="panel">
+      <div class="panel-head">
+        <h2 class="panel-h"><svg class="ico"><use href="#i-truck"/></svg>TMS shipments · next 5 days</h2>
+        <div class="panel-sub">planned vs live ETA</div>
+      </div>
+      <table class="datatable">
+        <thead><tr><th>Shipment</th><th>Truck</th><th>DC</th><th>Planned</th><th>ETA</th><th class="num">Delay</th><th>Status</th><th class="num">Pallets</th></tr></thead>
+        <tbody>
+          <tr><td>SHP-000108</td><td>TRK-2213</td><td>DC01</td><td>Wed 07:00</td><td>Wed 06:56</td><td class="num">−4 min</td><td><span class="pill good"><span class="dot"></span>scheduled</span></td><td class="num">11</td></tr>
+          <tr><td>SHP-000112</td><td>TRK-4069</td><td>DC01</td><td>Thu 07:00</td><td><strong>Fri 07:10</strong></td><td class="num">+1,450 min</td><td><span class="pill crit"><span class="dot"></span>delayed</span></td><td class="num">13</td></tr>
+          <tr><td>SHP-000116</td><td>TRK-5340</td><td>DC01</td><td>Fri 07:00</td><td>Fri 07:30</td><td class="num">+30 min</td><td><span class="pill warn"><span class="dot"></span>delayed</span></td><td class="num">19</td></tr>
+          <tr><td>SHP-000120</td><td>TRK-3028</td><td>DC01</td><td>Sat 07:00</td><td>Sat 07:20</td><td class="num">+20 min</td><td><span class="pill good"><span class="dot"></span>scheduled</span></td><td class="num">4</td></tr>
+          <tr><td>SHP-000121</td><td>TRK-7635</td><td>DC02</td><td>Sat 08:00</td><td>Sat 07:53</td><td class="num">−7 min</td><td><span class="pill good"><span class="dot"></span>scheduled</span></td><td class="num">21</td></tr>
+        </tbody>
+      </table>
+      <div class="note">Every row is validated at ingest (ids, status enum, <code>delay = eta − planned</code>); failures land in quarantine with a reason code.</div>
+    </div>
+
+    <div>
+      <div class="panel">
+        <div class="panel-head">
+          <h2 class="panel-h"><svg class="ico teal"><use href="#i-sparkles"/></svg>Inbound Logistics Planner → Advisor</h2>
+          <div class="panel-sub">17 tool calls · audited</div>
+        </div>
+        <div class="rec">
+          <h3>Re-sequence receiving work around slipped inbound trucks</h3>
+          <p>TMS shows TRK-4069 planned for Thu Nov 5 slipping to Fri Nov 6 (+1,450 min). About 325 receiving minutes planned for it would have no inbound work. Recommend a manager-led review that moves receiving tasks to the new ETA and pre-assigns productive alternatives (resets, training, back-of-house, customer recovery) for the affected shift — total planned hours unchanged.</p>
+          <div class="meta">
+            <span class="pill ai"><span class="dot"></span>confidence · medium</span>
+            <span class="pill warn"><span class="dot"></span>pending_review</span>
+            <span class="pill info"><span class="dot"></span>evidence · 1 finding</span>
+          </div>
+        </div>
+        <div class="note">Policy guard passed: no language about reducing anyone's hours. A reviewer approves, rejects, or asks for more evidence in the queue.</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2 class="panel-h"><svg class="ico"><use href="#i-shield"/></svg>How the agent got here</h2>
+          <div class="panel-sub">typed tool gateway · allowlisted</div>
+        </div>
+        <ul class="steps">
+          <li><span class="n">01</span><span><code>tms.shipments.list</code> — 5-day outlook via the TMS MCP adapter (horizon capped)</span></li>
+          <li><span class="n">02</span><span><code>inbound.labor_plan_check</code> — deterministic per-day join, lineage attached</span></li>
+          <li><span class="n">03</span><span><code>forecast.labor</code> — labor-minute forecast for the window</span></li>
+          <li><span class="n">04–17</span><span>Store Performance + Workforce Analyst add KPI, cost, and rate context</span></li>
+          <li><span class="n">→</span><span>Operations Advisor drafts; forbidden-language guard; <strong>human review required</strong></span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div>Synthetic TMS data · demo scenario · no individual employees named · nothing written to the TMS</div>
+    <div>ADRs · <code>docs/DECISIONS.md#adr-0013</code> · <code>#adr-0014</code></div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var btn = document.getElementById('themeBtn');
+    if (!btn) return;
+    var root = document.documentElement;
+    try { var s = localStorage.getItem('sp_theme'); if (s === 'dark' || s === 'light') root.setAttribute('data-theme', s); } catch (e) {}
+    function syncIcon() {
+      var cur = root.getAttribute('data-theme');
+      var isDark = cur === 'dark' || (cur !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      var use = btn.querySelector('use');
+      if (use) use.setAttribute('href', isDark ? '#i-sun' : '#i-moon');
+    }
+    syncIcon();
+    btn.addEventListener('click', function () {
+      var cur = root.getAttribute('data-theme');
+      var isDark = cur === 'dark' ? false : (cur === 'light' ? true : !window.matchMedia('(prefers-color-scheme: dark)').matches);
+      var next = isDark ? 'dark' : 'light';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem('sp_theme', next); } catch (e) {}
+      syncIcon();
+    });
+  })();
+</script>
+</body>
+</html>

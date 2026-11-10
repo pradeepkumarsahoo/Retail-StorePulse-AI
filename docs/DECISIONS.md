@@ -135,3 +135,29 @@ Floating-point money drifts. All currency amounts stored as `BIGINT` cents; divi
 **Decision.** `packages/observability/logging.py` emits one JSON object per log line with correlation ID. `packages/observability/metrics.py` renders counters and summaries in Prometheus text exposition format. Both are pure-stdlib Python.
 
 **Consequences.** Grafana dashboards are a config change when the collector lands; no code rewrite.
+
+---
+
+## ADR-0013 · TMS integration through a read-only, horizon-capped MCP-style adapter
+
+**Status:** Accepted · 2026-11-10
+
+**Context.** Problem card 09: the Transport Management System (TMS) knows which DC trucks will land at each store days ahead, but labor planning never sees it. Stores staff receiving on the planned day, the truck slips, and paid hours go idle. The business rule is *"see every truck 5 days before it lands and plan labor around it."* The TMS is a vendor system of record; StorePulse must never write to it.
+
+**Options.** (a) Agents query a TMS vendor API directly. (b) Nightly CSV dump read by SQL in each agent. (c) Validate the TMS export into a governed mirror table and expose it through an MCP-shaped adapter behind the typed tool gateway, exactly like the labor-rate reference (ADR-0008).
+
+**Decision.** (c). `services/tms_mcp/server.py` exposes `list_inbound_shipments`, `get_inbound_shipment`, `get_tms_metadata` over the Pandera-validated `inbound_shipment` table. The adapter **caps the lookahead at `STOREPULSE_TMS_HORIZON_DAYS` (default 5)** at the Pydantic layer, so no agent can pull unbounded shipment history. Agents reach it only via `tms.shipments.list` / `tms.shipment.get`, which are allowlisted for the new `inbound_logistics` specialist alone; the scope check runs against the *owning* store so a guessed shipment id cannot leak another region's truck.
+
+**Consequences.** Swapping the synthetic feed for the real TMS API or the official MCP SDK transport is below the gateway and touches no agent code. Every TMS response carries server name/version, `retrieved_at_utc`, and a `synthetic` flag. Write-back (re-routing, re-scheduling a truck) is structurally impossible from the agent side.
+
+---
+
+## ADR-0014 · The TMS → labor join is deterministic code; the LLM never computes it
+
+**Status:** Accepted · 2026-11-10
+
+**Context.** "Based on TMS data, labor planning should be done." The tempting design is to hand the LLM the truck list and the schedule and ask for a plan. That violates ADR-0007 (LLMs summarise, never calculate) and makes the output untestable.
+
+**Decision.** `packages/inbound_planning/service.py::labor_plan_check` performs the per-day join (trucks due, trucks slipped/cancelled, estimated unload minutes, labor minutes planned for the day and for the morning receiving window) and classifies each day as `balanced`, `idle_risk`, `under_coverage`, `no_inbound`, or `insufficient_evidence`. Thresholds (`UNDER_COVERAGE_SHARE = 0.35`, receiving window 09:00–12:00) are named constants and appear in the lineage block. The Inbound Logistics Planner agent turns the classified days into dated findings; the Operations Advisor ranks inbound findings **ahead of** sales-trend heuristics because they are concrete, dated planning facts, and still passes every draft through the forbidden-language guard (ADR-0011). A day with trucks but no labor plan is reported as `insufficient_evidence`, never guessed.
+
+**Consequences.** The same inputs always give the same plan; `tests/unit/test_inbound_planning.py` pins every status transition. Recommendations change *task sequencing and coverage*, never an individual's hours, and always land in `pending_review`.

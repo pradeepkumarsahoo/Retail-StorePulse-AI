@@ -1,7 +1,9 @@
 """Deterministic synthetic data generator.
 
 Writes labeled synthetic CSVs for 5 stores × 90 days × hourly open-period rows
-for sales, labor, and traffic. Fixed seed → byte-identical output across runs.
+for sales, labor, and traffic, plus a synthetic TMS (Transport Management
+System) inbound-shipment feed covering the same period and a 5-day lookahead.
+Fixed seed → byte-identical output across runs.
 
 Usage:
     python -m scripts.generate_data --seed 42 --out data/synthetic
@@ -44,6 +46,28 @@ STORE_BASELINE = {
 }
 
 CONVERSION_RATE = 0.22  # 22% of visitors transact on average
+
+# --- TMS (Transport Management System) synthetic feed ----------------------
+# Each store receives DC trucks on a fixed weekly pattern (Mon=0 … Sun=6).
+# The TMS feed is generated for `days + TMS_LOOKAHEAD_DAYS` so the 5-day
+# labor-planning horizon always has inbound records beyond the fact tables.
+TMS_LOOKAHEAD_DAYS = 5
+TMS_PLANNED_ARRIVAL_HOUR = 7          # trucks are planned before store open (UTC-equivalent)
+TMS_DELAY_PROBABILITY = 0.18          # share of trucks that slip
+TMS_ROLL_TO_NEXT_DAY_PROBABILITY = 0.05  # share that roll a full day (the "idle labor" case)
+TMS_CANCEL_PROBABILITY = 0.03
+TMS_EXTRA_TRUCK_PROBABILITY = 0.10    # promo/reset weeks: a second, heavier truck the same day
+UNLOAD_MINUTES_PER_PALLET = 25        # receiving labor estimate per pallet (synthetic)
+
+STORE_DELIVERY_DOWS = {
+    "S001": (0, 2, 4),   # Mon · Wed · Fri — flagship, three trucks a week
+    "S002": (1, 3),      # Tue · Thu
+    "S003": (0, 3),      # Mon · Thu
+    "S004": (1, 4),      # Tue · Fri
+    "S005": (2,),        # Wed
+}
+STORE_DC = {"S001": "DC01", "S002": "DC01", "S003": "DC02", "S004": "DC03", "S005": "DC04"}
+CARRIERS = ("NorthStar Freight", "Lakeside Logistics", "Blue Ridge Carriers")
 
 
 def _hourly_traffic_multiplier(hour: int) -> float:
@@ -125,13 +149,79 @@ def generate(seed: int, start_date: datetime, days: int) -> dict[str, pd.DataFra
                     "schema_version": SCHEMA_VERSION,
                 })
 
+    # TMS feed is drawn AFTER the fact tables so sales/labor/traffic output
+    # stays byte-identical to earlier synthetic versions under the same seed.
+    shipment_rows = _generate_inbound_shipments(rng, start_date, days + TMS_LOOKAHEAD_DAYS)
+
     stores_df = pd.DataFrame(STORES)
     return {
         "store": stores_df,
         "sales_txn": pd.DataFrame(sales_rows),
         "labor_hours": pd.DataFrame(labor_rows),
         "traffic_count": pd.DataFrame(traffic_rows),
+        "inbound_shipment": pd.DataFrame(shipment_rows),
     }
+
+
+def _generate_inbound_shipments(rng: np.random.Generator, start_date: datetime,
+                                days: int) -> list[dict]:
+    """Synthetic TMS export: one row per DC truck planned into a store.
+
+    Mirrors the fields a real TMS exposes (planned arrival, live ETA, status,
+    delay, load size) plus a receiving-labor estimate the planner needs.
+    """
+    rows: list[dict] = []
+    seq = 0
+
+    def _truck(sid: str, planned: datetime, pallet_scale: float) -> dict:
+        nonlocal seq
+        seq += 1
+        base = STORE_BASELINE[sid]
+        pallets = int(max(2, rng.poisson(base["staff"] * 1.1 * pallet_scale)))
+        cases = int(max(pallets, round(pallets * rng.normal(42, 6))))
+        unload_minutes = int(pallets * UNLOAD_MINUTES_PER_PALLET)
+
+        u = rng.random()
+        if u < TMS_CANCEL_PROBABILITY:
+            status, delay = "cancelled", 0
+        elif u < TMS_CANCEL_PROBABILITY + TMS_ROLL_TO_NEXT_DAY_PROBABILITY:
+            status, delay = "delayed", 24 * 60 + int(rng.integers(0, 120))
+        elif u < TMS_CANCEL_PROBABILITY + TMS_ROLL_TO_NEXT_DAY_PROBABILITY + TMS_DELAY_PROBABILITY:
+            status, delay = "delayed", int(min(600, max(30, rng.gamma(2.0, 75.0))))
+        else:
+            status = "scheduled"
+            delay = int(rng.integers(-20, 21))  # small early/late jitter
+        eta = planned + timedelta(minutes=delay)
+        return {
+            "shipment_id": f"SHP-{seq:06d}",
+            "store_id": sid,
+            "dc_id": STORE_DC[sid],
+            "truck_id": f"TRK-{int(rng.integers(1000, 9999)):04d}",
+            "carrier": CARRIERS[int(rng.integers(0, len(CARRIERS)))],
+            "planned_arrival_utc": planned,
+            "eta_utc": eta,
+            "status": status,
+            "delay_minutes": delay,
+            "pallets": pallets,
+            "cases": cases,
+            "unload_minutes_est": unload_minutes,
+            "source_system": "synthetic_tms",
+            "schema_version": SCHEMA_VERSION,
+        }
+
+    for day_idx in range(days):
+        day = start_date + timedelta(days=day_idx)
+        for store in STORES:
+            sid = store["store_id"]
+            if day.weekday() not in STORE_DELIVERY_DOWS[sid]:
+                continue
+            planned = day.replace(hour=TMS_PLANNED_ARRIVAL_HOUR, minute=0, second=0,
+                                  microsecond=0, tzinfo=timezone.utc)
+            rows.append(_truck(sid, planned, pallet_scale=1.0))
+            if rng.random() < TMS_EXTRA_TRUCK_PROBABILITY:
+                # Second trailer an hour later — the "heavy inbound day" case.
+                rows.append(_truck(sid, planned + timedelta(hours=1), pallet_scale=1.6))
+    return rows
 
 
 def main() -> None:

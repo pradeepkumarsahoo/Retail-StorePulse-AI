@@ -13,7 +13,7 @@ import logging
 import time
 import uuid
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Literal
 
 from sqlalchemy import text
@@ -21,6 +21,7 @@ from sqlalchemy import text
 from packages.ai_orchestration.agents import (
     anomaly_investigator,
     briefing,
+    inbound_logistics,
     operations_advisor,
     store_performance,
     workforce,
@@ -35,7 +36,8 @@ from packages.tool_gateway.tools import Context
 log = logging.getLogger("storepulse.supervisor")
 
 
-Intent = Literal["store_investigation", "anomaly_investigation", "daily_briefing"]
+Intent = Literal["store_investigation", "anomaly_investigation", "daily_briefing",
+                 "inbound_labor_planning"]
 
 
 @dataclass
@@ -97,6 +99,7 @@ class Supervisor:
 
     def investigate_store(self, ctx: Context, store_id: str,
                           from_utc: datetime, to_utc: datetime) -> RunResult:
+        """Store investigation: KPIs → workforce (incl. TMS 5-day plan check) → advisor."""
         run_id = str(uuid.uuid4())
         started = time.perf_counter()
         tokens = 0
@@ -168,6 +171,68 @@ class Supervisor:
                      payload={"anomaly_id": anomaly_id, "status": status})
         metrics.inc("storepulse_agent_runs_total", intent="anomaly_investigation", status=status)
         return RunResult(run_id=run_id, status=status, intent="anomaly_investigation",
+                         output=output, tokens_used=tokens, step_count=step, error=error)
+
+    def plan_inbound_labor(self, ctx: Context, store_id: str, as_of_utc: datetime,
+                           horizon_days: int = 5) -> RunResult:
+        """TMS-driven labor planning: trucks 5 days out → labor plan check → recommendation.
+
+        Specialists in order: inbound_logistics (TMS outlook + plan check),
+        store_performance (trailing 7-day context), workforce (forecast, rate,
+        embedded plan check), operations_advisor (draft, policy-guarded).
+        """
+        run_id = str(uuid.uuid4())
+        started = time.perf_counter()
+        tokens = 0
+        step = 0
+        output: dict = {}
+        status = "ok"
+        error: str | None = None
+        try:
+            stores = list_stores(ctx.engine)
+            match = next((s for s in stores if s["store_id"] == store_id), None)
+            if not match:
+                raise ValueError(f"Unknown store_id: {store_id}")
+            region = match["region"]
+
+            inb = inbound_logistics.run(ctx, run_id, store_id, as_of_utc,
+                                        horizon_days=horizon_days)
+            step = inb["last_seq"]
+            self._check_budget(step, tokens, started)
+
+            ctx_from = as_of_utc - timedelta(days=7)
+            sp = store_performance.run(ctx, run_id, store_id, ctx_from, as_of_utc,
+                                       start_seq=step)
+            step = sp["last_seq"]
+            self._check_budget(step, tokens, started)
+
+            wf = workforce.run(ctx, run_id, store_id, ctx_from, as_of_utc, region,
+                               start_seq=step, inbound_horizon_days=horizon_days)
+            step = wf["last_seq"]
+            self._check_budget(step, tokens, started)
+
+            advisor = operations_advisor.run(ctx, run_id, sp, wf, investigations=None,
+                                             start_seq=step, inbound=inb)
+            output = {
+                "inbound_logistics": inb,
+                "store_performance": sp,
+                "workforce": wf,
+                "advisor": advisor,
+            }
+        except Exception as e:
+            status = "error"
+            error = str(e)
+            log.exception("plan_inbound_labor_failed", extra={"run_id": run_id})
+        _persist_run(ctx, run_id, ctx.principal.subject, "inbound_labor_planning",
+                     store_id, self.llm.name, "1.1.0",
+                     status, step, tokens, self.budget, output if status == "ok" else None, error)
+        record_audit(ctx.engine, actor=ctx.principal.subject,
+                     action="ai_run.inbound_labor_planning",
+                     target_type="ai_run", target_id=run_id,
+                     payload={"store_id": store_id, "status": status,
+                              "horizon_days": horizon_days})
+        metrics.inc("storepulse_agent_runs_total", intent="inbound_labor_planning", status=status)
+        return RunResult(run_id=run_id, status=status, intent="inbound_labor_planning",
                          output=output, tokens_used=tokens, step_count=step, error=error)
 
     def daily_briefing(self, ctx: Context, store_id: str, as_of_utc: datetime) -> RunResult:

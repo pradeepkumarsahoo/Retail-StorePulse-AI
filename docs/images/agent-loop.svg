@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" role="img" aria-labelledby="t2 d2">
 <title id="t2">StorePulse-AI agentic loop</title>
-<desc id="d2">A supervisor dispatches to five specialist agents that can only reach data through the typed tool gateway. Results are schema-validated and routed through human review. Everything is audited.</desc>
+<desc id="d2">A supervisor dispatches to six specialist agents (including the Inbound Logistics Planner that reads the TMS 5-day truck outlook) that can only reach data through the typed tool gateway. Results are schema-validated and routed through human review. Everything is audited.</desc>
 <defs>
   <marker id="arr2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
     <path d="M0 0L10 5L0 10z" fill="#7b86a3"/>
@@ -55,66 +55,74 @@
 </g>
 <path class="arrow" d="M535 86L535 118" marker-end="url(#arr2)"/>
 
-<!-- Specialists row -->
+<!-- Specialists row (6) -->
 <g transform="translate(20,128)">
-  <rect class="ai" x="0" y="0" width="170" height="70" rx="10"/>
-  <text class="tag" x="12" y="20" fill="#8b5cf6">Specialist</text>
-  <text class="title" x="12" y="40">Store Performance</text>
-  <text class="label" x="12" y="58">KPI set · comparables</text>
+  <rect class="ai" x="0" y="0" width="145" height="70" rx="10"/>
+  <text class="tag" x="10" y="20" fill="#8b5cf6">Specialist</text>
+  <text class="title" x="10" y="40">Store Performance</text>
+  <text class="label" x="10" y="58">KPI set · comparables</text>
 </g>
-<g transform="translate(200,128)">
-  <rect class="ai" x="0" y="0" width="170" height="70" rx="10"/>
-  <text class="tag" x="12" y="20" fill="#8b5cf6">Specialist</text>
-  <text class="title" x="12" y="40">Workforce Analyst</text>
-  <text class="label" x="12" y="58">Forecast · labor-rate (MCP)</text>
+<g transform="translate(173,128)">
+  <rect class="ai" x="0" y="0" width="150" height="70" rx="10"/>
+  <text class="tag" x="10" y="20" fill="#8b5cf6">Specialist</text>
+  <text class="title" x="10" y="40">Workforce Analyst</text>
+  <text class="label" x="10" y="58">Forecast · rate · TMS check</text>
 </g>
-<g transform="translate(380,128)">
-  <rect class="ai" x="0" y="0" width="190" height="70" rx="10"/>
-  <text class="tag" x="12" y="20" fill="#8b5cf6">Specialist</text>
-  <text class="title" x="12" y="40">Anomaly Investigator</text>
-  <text class="label" x="12" y="58">Evidence · ranked hypotheses</text>
+<g transform="translate(331,128)">
+  <rect class="ai" x="0" y="0" width="160" height="70" rx="10"/>
+  <text class="tag" x="10" y="20" fill="#8b5cf6">Specialist · new</text>
+  <text class="title" x="10" y="40">Inbound Logistics</text>
+  <text class="label" x="10" y="58">TMS 5-day trucks · plan</text>
 </g>
-<g transform="translate(580,128)">
-  <rect class="ai" x="0" y="0" width="170" height="70" rx="10"/>
-  <text class="tag" x="12" y="20" fill="#8b5cf6">Specialist</text>
-  <text class="title" x="12" y="40">Operations Advisor</text>
-  <text class="label" x="12" y="58">Draft recommendation</text>
+<g transform="translate(499,128)">
+  <rect class="ai" x="0" y="0" width="150" height="70" rx="10"/>
+  <text class="tag" x="10" y="20" fill="#8b5cf6">Specialist</text>
+  <text class="title" x="10" y="40">Anomaly Investigator</text>
+  <text class="label" x="10" y="58">Evidence · hypotheses</text>
 </g>
-<g transform="translate(760,128)">
-  <rect class="ai" x="0" y="0" width="170" height="70" rx="10"/>
-  <text class="tag" x="12" y="20" fill="#8b5cf6">Specialist</text>
-  <text class="title" x="12" y="40">Briefing</text>
-  <text class="label" x="12" y="58">LLM composes narrative</text>
+<g transform="translate(657,128)">
+  <rect class="ai" x="0" y="0" width="145" height="70" rx="10"/>
+  <text class="tag" x="10" y="20" fill="#8b5cf6">Specialist</text>
+  <text class="title" x="10" y="40">Operations Advisor</text>
+  <text class="label" x="10" y="58">Draft recommendation</text>
+</g>
+<g transform="translate(810,128)">
+  <rect class="ai" x="0" y="0" width="120" height="70" rx="10"/>
+  <text class="tag" x="10" y="20" fill="#8b5cf6">Specialist</text>
+  <text class="title" x="10" y="40">Briefing</text>
+  <text class="label" x="10" y="58">LLM narrates</text>
 </g>
 
-<path class="arrow" d="M535 86L105 128" marker-end="url(#arr2)" opacity="0.5"/>
-<path class="arrow" d="M535 86L285 128" marker-end="url(#arr2)" opacity="0.5"/>
-<path class="arrow" d="M535 86L475 128" marker-end="url(#arr2)" opacity="0.9"/>
-<path class="arrow" d="M535 86L665 128" marker-end="url(#arr2)" opacity="0.5"/>
-<path class="arrow" d="M535 86L845 128" marker-end="url(#arr2)" opacity="0.5"/>
+<path class="arrow" d="M535 86L92 128" marker-end="url(#arr2)" opacity="0.5"/>
+<path class="arrow" d="M535 86L248 128" marker-end="url(#arr2)" opacity="0.5"/>
+<path class="arrow" d="M535 86L411 128" marker-end="url(#arr2)" opacity="0.9"/>
+<path class="arrow" d="M535 86L574 128" marker-end="url(#arr2)" opacity="0.9"/>
+<path class="arrow" d="M535 86L729 128" marker-end="url(#arr2)" opacity="0.5"/>
+<path class="arrow" d="M535 86L870 128" marker-end="url(#arr2)" opacity="0.5"/>
 
 <!-- Tool gateway -->
 <g transform="translate(20,220)">
   <rect class="gate" x="0" y="0" width="910" height="56" rx="10"/>
   <text class="tag" x="14" y="20" fill="#8b5cf6">Typed Tool Gateway · allowlisted · schema-validated · read-only</text>
-  <text class="label" x="14" y="40">kpi.splh · kpi.atv · kpi.labor_cost_pct · forecast.labor · anomaly.detail · mcp.labor_rate.get · stores.list</text>
+  <text class="label" x="14" y="40">kpi.splh · kpi.labor_cost_pct · forecast.labor · anomaly.detail · mcp.labor_rate.get · tms.shipments.list · inbound.labor_plan_check · stores.list</text>
 </g>
-<path class="arrow" d="M105 198L105 220" marker-end="url(#arr2)"/>
-<path class="arrow" d="M285 198L285 220" marker-end="url(#arr2)"/>
-<path class="arrow" d="M475 198L475 220" marker-end="url(#arr2)"/>
-<path class="arrow" d="M665 198L665 220" marker-end="url(#arr2)"/>
-<path class="arrow" d="M845 198L845 220" marker-end="url(#arr2)"/>
+<path class="arrow" d="M92 198L92 220" marker-end="url(#arr2)"/>
+<path class="arrow" d="M248 198L248 220" marker-end="url(#arr2)"/>
+<path class="arrow" d="M411 198L411 220" marker-end="url(#arr2)"/>
+<path class="arrow" d="M574 198L574 220" marker-end="url(#arr2)"/>
+<path class="arrow" d="M729 198L729 220" marker-end="url(#arr2)"/>
+<path class="arrow" d="M870 198L870 220" marker-end="url(#arr2)"/>
 
 <!-- Data + MCP -->
 <g transform="translate(20,296)">
   <rect class="data" x="0" y="0" width="440" height="50" rx="10"/>
-  <text class="title" x="14" y="24">Analytics · Forecast · Anomaly services</text>
+  <text class="title" x="14" y="24">Analytics · Forecast · Anomaly · Inbound plan check</text>
   <text class="label" x="14" y="40">Deterministic · validated datasets only</text>
 </g>
 <g transform="translate(490,296)">
   <rect class="ai" x="0" y="0" width="440" height="50" rx="10"/>
-  <text class="title" x="14" y="24">MCP · Labor Rate Reference</text>
-  <text class="label" x="14" y="40">Read-only · versioned · region-scoped · synthetic reference data</text>
+  <text class="title" x="14" y="24">MCP-style · Labor Rate Reference · TMS inbound shipments</text>
+  <text class="label" x="14" y="40">Read-only · versioned · scoped · TMS horizon capped at 5 days</text>
 </g>
 <path class="arrow" d="M240 276L240 296" marker-end="url(#arr2)"/>
 <path class="arrow" d="M710 276L710 296" marker-end="url(#arr2)"/>

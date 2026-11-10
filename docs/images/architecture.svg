@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 620" role="img" aria-labelledby="t d">
 <title id="t">StorePulse-AI system architecture</title>
-<desc id="d">A four-layer modular monolith with an isolated AI runtime and a governance control plane. Users on top, presentation and API next, three core pillars (Analytics, AI Orchestration, Governance) in the middle, MCP adapter on the right, data layer underneath, and observability across the bottom.</desc>
+<desc id="d">A four-layer modular monolith with an isolated AI runtime and a governance control plane. Users on top, presentation and API next, three core pillars (Analytics, AI Orchestration, Governance) in the middle, two read-only MCP-style adapters (labor-rate reference and the TMS inbound-shipment feed) on the right, data layer underneath, and observability across the bottom.</desc>
 <defs>
   <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
     <path d="M0 0L10 5L0 10z" fill="#7b86a3"/>
@@ -77,8 +77,8 @@
   <text class="tag" x="14" y="20" fill="#8b5cf6">AI Orchestration · trust boundary</text>
   <text class="title" x="14" y="40">Supervisor</text>
   <text class="label" x="14" y="58">Intent · budgets · timeouts</text>
-  <text class="title" x="14" y="82">5 specialist agents</text>
-  <text class="label" x="14" y="98">StorePerf · Workforce · AnomalyInv · Advisor · Briefing</text>
+  <text class="title" x="14" y="82">6 specialist agents</text>
+  <text class="label" x="14" y="98">StorePerf · Workforce · AnomalyInv · Advisor · Briefing · InboundLogistics</text>
   <text class="title" x="14" y="120">Typed tool gateway (per-agent allowlists)</text>
 </g>
 <g transform="translate(650,260)">
@@ -95,21 +95,21 @@
 <path class="arrow" d="M785 240L785 260" marker-end="url(#arr)"/>
 <path class="arrow" d="M480 390L480 420" marker-end="url(#arr)"/>
 
-<!-- MCP -->
+<!-- MCP adapters -->
 <g transform="translate(650,420)">
-  <rect class="ai" x="0" y="0" width="270" height="56" rx="10"/>
-  <text class="tag" x="14" y="20" fill="#8b5cf6">External · MCP adapter</text>
-  <text class="title" x="14" y="40">Labor Rate Reference server</text>
-  <text class="label" x="14" y="54">Read-only · versioned · region-scoped</text>
+  <rect class="ai" x="0" y="0" width="270" height="62" rx="10"/>
+  <text class="tag" x="14" y="18" fill="#8b5cf6">External · MCP-style adapters (read-only)</text>
+  <text class="title" x="14" y="36">Labor Rate Reference server</text>
+  <text class="title" x="14" y="52">TMS inbound shipments · 5-day horizon cap</text>
 </g>
 <path class="arrow" d="M615 325C680 325 760 390 760 420" marker-end="url(#arr)"/>
 
 <!-- Data layer -->
 <g transform="translate(40,420)">
-  <rect class="data" x="0" y="0" width="575" height="56" rx="10"/>
-  <text class="tag" x="14" y="20" fill="#f59e0b">Data layer</text>
-  <text class="title" x="14" y="40">SQLite today · Postgres from M7 · Pandera validation · lineage · quarantine</text>
-  <text class="label" x="14" y="54">Deterministic synthetic generator · 30+ stores · integer-cent money</text>
+  <rect class="data" x="0" y="0" width="575" height="62" rx="10"/>
+  <text class="tag" x="14" y="18" fill="#f59e0b">Data layer</text>
+  <text class="title" x="14" y="36">SQLite today · Postgres from M7 · Pandera validation · lineage · quarantine</text>
+  <text class="label" x="14" y="52">Synthetic generator · sales · labor · traffic · inbound_shipment (TMS mirror) · integer-cent money</text>
 </g>
 
 <!-- Observability -->

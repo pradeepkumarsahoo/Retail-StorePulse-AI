@@ -1,7 +1,7 @@
 """FastAPI entrypoint: full v1.0 surface.
 
-Routers: health, kpi, forecast, anomaly, agents, recommendations, audit,
-metrics, plus a static UI at /.
+Routers: health, kpi, forecast, inbound (TMS), anomaly, agents, recommendations,
+audit, metrics, plus a static UI at /.
 
 Cross-cutting:
 - Correlation ID on every response.
@@ -23,6 +23,7 @@ from apps.api.routers import agents as agents_router
 from apps.api.routers import anomaly as anomaly_router
 from apps.api.routers import audit as audit_router
 from apps.api.routers import forecast as forecast_router
+from apps.api.routers import inbound as inbound_router
 from apps.api.routers import kpi as kpi_router
 from apps.api.routers import metrics_router
 from apps.api.routers import recommendations as reco_router
@@ -31,7 +32,7 @@ from packages.observability.logging import configure_logging, set_correlation_id
 from packages.shared_contracts.api_schemas import HealthResponse
 
 
-API_VERSION = "1.0.0"
+API_VERSION = "1.1.0"
 configure_logging()
 log = logging.getLogger("storepulse.api")
 
@@ -93,6 +94,7 @@ def health() -> HealthResponse:
 # Routers
 app.include_router(kpi_router.router)
 app.include_router(forecast_router.router)
+app.include_router(inbound_router.router)
 app.include_router(anomaly_router.router)
 app.include_router(agents_router.router)
 app.include_router(reco_router.router)

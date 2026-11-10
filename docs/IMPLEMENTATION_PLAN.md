@@ -10,6 +10,7 @@
 - Every KPI value carries lineage: source rows, window, metric version.
 - Synthetic data is **always** labeled synthetic.
 - Agents can only reach the world through the typed tool gateway.
+- External systems of record (labor-rate reference, TMS) are mirrored read-only and exposed through MCP-shaped adapters; StorePulse never writes back.
 - Human review is required for any operational recommendation.
 
 ## Milestone roadmap
@@ -21,26 +22,29 @@
 | M2 | Core KPI catalog & regional/store APIs | ATV, UPT, labor cost %, conversion, visitors, net sales; metric catalog; RBAC scope; data-quality endpoint | ✅ |
 | M3 | Workforce forecast & anomaly detection | Seasonal baseline + WAPE/MAE; robust z-score anomalies; evidence records | ✅ |
 | M4 | Agentic workflows & MCP | Supervisor + 5 specialists; typed tool gateway; MCP labor-rate server; approval workflow; audit trail | ✅ |
-| M5 | React + Vite frontend | All 11 screens, accessibility, responsive | ⏳ |
+| M4.5 | **TMS integration & inbound labor planning (v1.1)** | TMS feed → Pandera → `inbound_shipment` mirror; MCP-style TMS adapter capped at 5 days; deterministic `inbound_labor_plan_check`; 6th specialist `inbound_logistics`; `plan_inbound_labor` workflow; Inbound screen; ADR-0013/0014 | ✅ |
+| M5 | React + Vite frontend | All 12 screens, accessibility, responsive | ⏳ |
 | M6 | Governance, security, observability | OWASP control mapping; threat model; OpenTelemetry + Grafana; pip-audit CI | 🟡 (logs + metrics shipped) |
-| M7 | Release hardening | Docker Compose; Postgres; TLS; OIDC; MCP SDK transport | ⏳ |
+| M7 | Release hardening | Docker Compose; Postgres; TLS; OIDC; MCP SDK transport; live TMS vendor API behind the same adapter | ⏳ |
 
-## v1.0 snapshot — what's running now
+## v1.1 snapshot — what's running now
 
-Everything in M1 through M4 ships together as v1.0. See `IMPLEMENTATION_STATUS.md` for the full checklist; headline items:
+Everything in M1 through M4.5 ships together as v1.1. See `IMPLEMENTATION_STATUS.md` for the full checklist; headline items:
 
-- 5 specialist agents + 1 supervisor
-- Typed tool gateway with per-agent allowlists
-- In-process MCP-style labor-rate reference server
+- 6 specialist agents + 1 supervisor with 4 workflows (`investigate_store`, `plan_inbound_labor`, `investigate_anomaly`, `daily_briefing`)
+- Typed tool gateway with per-agent allowlists (16 tools)
+- Two in-process MCP-style adapters: labor-rate reference and TMS inbound shipments (5-day horizon cap)
 - Deterministic LLM provider (production provider pluggable)
-- 8 KPIs with lineage, 1 forecast model, 1 anomaly detector, 1 approval workflow
-- 63 tests green: unit + integration + security
+- 8 KPIs with lineage, 1 forecast model, 1 anomaly detector, 1 inbound labor-plan check, 1 approval workflow
+- 213 tests green: unit + integration + security
 - Structured JSON logs + Prometheus-text `/metrics`
-- 3 static UI screens: Regional, Investigation, Approvals
+- 4 static UI screens: Regional, Inbound (TMS), Investigation, Approvals
 
 ## Risk register
 
 - **SQLite ↔ Postgres parity.** Mitigated by SQLAlchemy ORM + ANSI-SQL discipline. (ADR-0001)
 - **Deterministic LLM is not as expressive as a real one.** By design for v1.0. Swap is a one-line DI change. (ADR-0007)
-- **MCP SDK transport not yet integrated.** v1.0 ships an MCP-shaped in-process adapter; agents call it through the same tool gateway, so the transport change is below the gateway. (ADR-0008)
+- **MCP SDK transport not yet integrated.** v1.x ships MCP-shaped in-process adapters; agents call them through the same tool gateway, so the transport change is below the gateway. (ADR-0008, ADR-0013)
+- **TMS data quality.** Real TMS feeds carry stale ETAs and duplicate shipment ids. The Pandera contract (unique ids, `delay == eta − planned`, status enum) quarantines them with a reason code instead of letting them reach the planner. (ADR-0013)
+- **Receiving-labor estimates are TMS-supplied.** `unload_minutes_est` is treated as evidence with a named source; actual unload time varies by load mix. Thresholds are constants in the lineage block and business-overridable. (ADR-0014)
 - **Synthetic labor model is intentionally generous** (SPLH ~ $13/hr on seed 42). The pipeline is correct; demand-aligned labor baselines land in a later milestone.

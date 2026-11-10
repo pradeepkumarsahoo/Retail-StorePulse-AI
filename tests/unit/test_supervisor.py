@@ -108,6 +108,53 @@ def test_investigate_anomaly_missing_marks_error(engine):
     assert result.status == "error"
 
 
+# --- plan_inbound_labor (TMS) ---------------------------------------------
+
+def test_plan_inbound_labor_ok_writes_ai_run_and_audit(engine, seed_window):
+    start, _ = seed_window
+    ctx = Context(engine=engine, principal=ADMIN)
+    sup = Supervisor()
+    result = sup.plan_inbound_labor(ctx, "S001", start, horizon_days=3)
+    assert result.status == "ok", result.error
+    assert result.intent == "inbound_labor_planning"
+    assert set(result.output) == {"inbound_logistics", "store_performance", "workforce", "advisor"}
+    # 3 (inbound) + 9 (store perf) + 5 (workforce) tool calls, advisor adds none.
+    assert result.step_count == 17
+    with engine.connect() as conn:
+        row = conn.execute(
+            text("SELECT intent, status, prompt_version, store_scope FROM ai_run WHERE run_id=:r"),
+            {"r": result.run_id},
+        ).one()
+        n_audit = conn.execute(
+            text("SELECT COUNT(*) FROM audit_event WHERE target_id=:r AND action='ai_run.inbound_labor_planning'"),
+            {"r": result.run_id},
+        ).scalar()
+        agents = conn.execute(
+            text("SELECT DISTINCT agent_name FROM tool_call WHERE run_id=:r"), {"r": result.run_id}
+        ).scalars().all()
+    assert (row.intent, row.status, row.prompt_version, row.store_scope) == (
+        "inbound_labor_planning", "ok", "1.1.0", "S001")
+    assert n_audit == 1
+    assert "inbound_logistics" in agents
+
+
+def test_plan_inbound_labor_unknown_store_marks_error(engine, seed_window):
+    start, _ = seed_window
+    ctx = Context(engine=engine, principal=ADMIN)
+    result = Supervisor().plan_inbound_labor(ctx, "S999", start)
+    assert result.status == "error"
+    assert "Unknown store_id" in (result.error or "")
+
+
+def test_plan_inbound_labor_respects_step_budget(engine, seed_window):
+    start, _ = seed_window
+    ctx = Context(engine=engine, principal=ADMIN)
+    sup = Supervisor(budget=RunBudget(max_steps=5, max_tokens=2000, timeout_s=20.0))
+    result = sup.plan_inbound_labor(ctx, "S001", start)
+    assert result.status == "error"
+    assert "Step budget exceeded" in (result.error or "")
+
+
 # --- daily_briefing --------------------------------------------------------
 
 def test_daily_briefing_ok_tracks_tokens(engine, seed_window):

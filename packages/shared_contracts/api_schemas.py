@@ -113,6 +113,54 @@ class ApprovalResponse(BaseModel):
     comment: str | None
 
 
+class InboundShipmentResponse(BaseModel):
+    """One TMS truck record. Timestamps are ISO-8601 UTC strings from the adapter."""
+    shipment_id: str
+    store_id: str
+    dc_id: str
+    truck_id: str
+    carrier: str
+    planned_arrival_utc: datetime
+    eta_utc: datetime
+    status: str
+    delay_minutes: int
+    pallets: int
+    cases: int
+    unload_minutes_est: int
+    source_system: str
+    schema_version: str
+    synthetic: bool
+
+
+class InboundPlanDayResponse(BaseModel):
+    date: str
+    status: Literal["balanced", "under_coverage", "idle_risk", "no_inbound", "insufficient_evidence"]
+    trucks_due: int
+    trucks_slipped: int
+    trucks_late_same_day: int
+    unload_minutes_est: int
+    idle_minutes_at_risk: int
+    planned_labor_minutes: float | None
+    receiving_window_labor_minutes: float | None
+    receiving_share: float | None
+    shipments: list[dict]
+
+
+class InboundPlanWindowResponse(BaseModel):
+    from_utc: datetime
+    to_utc: datetime
+    horizon_days: int
+
+
+class InboundLaborPlanResponse(BaseModel):
+    store_id: str
+    window: InboundPlanWindowResponse
+    days: list[InboundPlanDayResponse]
+    summary: dict
+    lineage: dict
+    status: Literal["ok", "insufficient_evidence"]
+
+
 class AgentRunResponse(BaseModel):
     run_id: str
     status: str

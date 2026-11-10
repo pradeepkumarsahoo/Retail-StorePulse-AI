@@ -109,6 +109,36 @@ class LaborRate(Base):
     version: Mapped[str] = mapped_column(String(16), nullable=False)
 
 
+class InboundShipment(Base):
+    """Inbound truck record synced from the Transport Management System (TMS).
+
+    One row per DC → store shipment. Read-only inside StorePulse: the TMS is the
+    system of record; this table is the governed, validated mirror the agents
+    and the labor-plan check read through the TMS MCP-style adapter. Used to
+    look 5 days ahead so labor planning can see receiving workload and ETA slips.
+    """
+    __tablename__ = "inbound_shipment"
+    shipment_id: Mapped[str] = mapped_column(String(16), primary_key=True)
+    store_id: Mapped[str] = mapped_column(String(8), ForeignKey("store.store_id"), nullable=False)
+    dc_id: Mapped[str] = mapped_column(String(8), nullable=False)
+    truck_id: Mapped[str] = mapped_column(String(16), nullable=False)
+    carrier: Mapped[str] = mapped_column(String(64), nullable=False)
+    planned_arrival_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    eta_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)  # scheduled|in_transit|delayed|arrived|cancelled
+    delay_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    pallets: Mapped[int] = mapped_column(Integer, nullable=False)
+    cases: Mapped[int] = mapped_column(Integer, nullable=False)
+    unload_minutes_est: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_system: Mapped[str] = mapped_column(String(32), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(16), nullable=False)
+
+    __table_args__ = (
+        Index("ix_inbound_store_eta", "store_id", "eta_utc"),
+        Index("ix_inbound_store_planned", "store_id", "planned_arrival_utc"),
+    )
+
+
 # --- Governance: data quality & quarantine --------------------------------
 
 class Quarantine(Base):

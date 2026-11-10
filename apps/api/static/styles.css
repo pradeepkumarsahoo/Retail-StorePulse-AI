@@ -77,3 +77,19 @@ th { color: var(--muted); font-size: 10px; letter-spacing: 0.14em; text-transfor
 .status.approved { background: rgba(16,185,129,0.12); color: var(--emerald); }
 .status.rejected { background: rgba(244,63,94,0.12); color: var(--rose); }
 .status.in_progress, .status.completed { background: rgba(139,92,246,0.12); color: var(--accent); }
+
+/* Inbound (TMS) board */
+.day-board { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+.day { padding: 14px 16px; border-radius: 14px; border: 1px solid var(--border); background: var(--card); }
+.day-date { font-size: 12px; color: var(--muted); letter-spacing: 0.08em; }
+.day-status { font-weight: 600; font-size: 15px; margin: 4px 0 10px; text-transform: uppercase; letter-spacing: 0.06em; }
+.day-row { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); padding: 3px 0; border-top: 1px dashed var(--border); }
+.day-row b { color: var(--ink); font-weight: 600; }
+.day-row.risk b { color: var(--rose); }
+.day.balanced { border-color: rgba(16,185,129,0.4); }  .day.balanced .day-status { color: var(--emerald); }
+.day.under_coverage { border-color: rgba(245,158,11,0.5); background: rgba(245,158,11,0.06); } .day.under_coverage .day-status { color: var(--amber); }
+.day.idle_risk { border-color: rgba(244,63,94,0.5); background: rgba(244,63,94,0.06); } .day.idle_risk .day-status { color: var(--rose); }
+.day.no_inbound .day-status, .day.insufficient_evidence .day-status { color: var(--muted); }
+.status.scheduled, .status.in_transit, .status.arrived { background: rgba(16,185,129,0.12); color: var(--emerald); }
+.status.delayed { background: rgba(245,158,11,0.12); color: var(--amber); }
+.status.cancelled { background: rgba(244,63,94,0.12); color: var(--rose); }

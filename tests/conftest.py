@@ -74,6 +74,29 @@ def _seed_dataset(engine: Engine, hours: list[datetime]) -> None:
     traffic["ts_utc"] = pd.to_datetime(traffic["ts_utc"], utc=True)
     validate_and_load(engine, traffic, "traffic_count")
 
+    # TMS mirror: one on-time truck for S001 on day 1 (balanced against the
+    # 270 scheduled minutes), one S001 truck planned day 2 that rolls to day 3
+    # (the idle-labor case), and one S002 truck (scope tests).
+    day1 = hours[0].replace(hour=7)
+    shipments = pd.DataFrame([
+        {"shipment_id": "SHP-000001", "store_id": "S001", "dc_id": "DC01", "truck_id": "TRK-1001",
+         "carrier": "NorthStar Freight", "planned_arrival_utc": day1, "eta_utc": day1,
+         "status": "scheduled", "delay_minutes": 0, "pallets": 3, "cases": 120,
+         "unload_minutes_est": 75, "source_system": "test_tms", "schema_version": "1.0.0"},
+        {"shipment_id": "SHP-000002", "store_id": "S001", "dc_id": "DC01", "truck_id": "TRK-1002",
+         "carrier": "NorthStar Freight", "planned_arrival_utc": day1 + timedelta(days=1),
+         "eta_utc": day1 + timedelta(days=2), "status": "delayed", "delay_minutes": 1440,
+         "pallets": 10, "cases": 420, "unload_minutes_est": 250,
+         "source_system": "test_tms", "schema_version": "1.0.0"},
+        {"shipment_id": "SHP-000003", "store_id": "S002", "dc_id": "DC02", "truck_id": "TRK-2001",
+         "carrier": "Lakeside Logistics", "planned_arrival_utc": day1, "eta_utc": day1,
+         "status": "scheduled", "delay_minutes": 0, "pallets": 6, "cases": 250,
+         "unload_minutes_est": 150, "source_system": "test_tms", "schema_version": "1.0.0"},
+    ])
+    for col in ("planned_arrival_utc", "eta_utc"):
+        shipments[col] = pd.to_datetime(shipments[col], utc=True)
+    validate_and_load(engine, shipments, "inbound_shipment")
+
     seed_rates(engine)
 
 

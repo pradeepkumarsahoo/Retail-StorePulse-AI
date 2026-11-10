@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>StorePulse-AI · Inbound Logistics (TMS)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="mast">
+    <div class="brand">
+      <div class="mark"></div>
+      <div>
+        <div class="brand-name">StorePulse<em>·</em>AI</div>
+        <div class="brand-sub">Inbound Logistics · TMS 5-day outlook</div>
+      </div>
+    </div>
+    <div class="mast-right">
+      <span class="tag warn">synthetic data</span>
+      <span class="tag" id="tms-tag">TMS · read-only</span>
+      <nav class="nav">
+        <a href="/">Regional</a>
+        <a href="/inbound.html" class="active">Inbound</a>
+        <a href="/investigation.html">Investigation</a>
+        <a href="/approvals.html">Approvals</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="controls">
+    <label>Token
+      <select id="token">
+        <option value="demo-admin">demo-admin (platform_admin)</option>
+        <option value="demo-regional-west">demo-regional-west (West only)</option>
+        <option value="demo-store-s001">demo-store-s001 (S001 only)</option>
+        <option value="demo-reviewer">demo-reviewer</option>
+      </select>
+    </label>
+    <label>Store
+      <select id="store"></select>
+    </label>
+    <label>As of (UTC day)
+      <input id="asof" type="date">
+    </label>
+    <label>Horizon (days, max 5)
+      <input id="horizon" type="number" min="1" max="5" value="5" style="min-width:90px">
+    </label>
+    <button id="run">Refresh</button>
+    <button id="plan" class="secondary">Plan labor with AI</button>
+  </div>
+
+  <section class="evidence">
+    <h2>Labor plan vs inbound trucks <span class="chip" id="src_chip">—</span><span class="chip" id="sum_chip">—</span></h2>
+    <div style="color: var(--muted); font-size: 13px; margin-bottom: 12px;">
+      Each day joins the Transport Management System (TMS) truck outlook to the labor plan.
+      <b>idle risk</b> = a truck planned for the day slipped or was cancelled, so receiving hours have no work.
+      <b>heavy inbound</b> = unload work exceeds 35% of labor planned for the morning receiving window.
+      Deterministic check · lineage below · nothing is written to the TMS or the schedule.
+    </div>
+    <div class="day-board" id="board"></div>
+  </section>
+
+  <section class="evidence">
+    <h2>TMS shipments in window</h2>
+    <table id="tbl"><thead><tr>
+      <th>Shipment</th><th>Truck</th><th>DC</th><th>Carrier</th><th>Planned</th><th>ETA</th>
+      <th>Delay</th><th>Status</th><th>Pallets</th><th>Unload est.</th>
+    </tr></thead><tbody></tbody></table>
+  </section>
+
+  <section class="evidence" id="plan-out" style="display:none">
+    <h2>Inbound Logistics Planner → Operations Advisor <span class="chip warn">human review required</span></h2>
+    <div id="plan-summary" style="font-size: 14px; margin-bottom: 10px;"></div>
+    <pre id="plan-pre">—</pre>
+    <div style="margin-top:12px"><a href="/approvals.html">Review queue →</a></div>
+  </section>
+
+  <section class="lineage-block">
+    <h3>Lineage · inbound_labor_plan_check</h3>
+    <pre id="lineage">—</pre>
+  </section>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+function headers(){return {"authorization": "Bearer " + $("token").value, "accept": "application/json"}}
+async function api(path, opts){const r = await fetch(path, Object.assign({headers: headers()}, opts||{})); return [r, await r.json()]}
+
+async function loadStores(){
+  const [r, body] = await api("/api/v1/stores");
+  const sel = $("store"); sel.innerHTML = "";
+  if (!r.ok) {const o=document.createElement("option");o.textContent="(not authorized)";sel.appendChild(o);return}
+  body.forEach(s=>{const o=document.createElement("option");o.value=s.store_id;o.textContent=`${s.store_id} · ${s.name} (${s.region})`;sel.appendChild(o)});
+}
+// Default to the first published forecast day of the synthetic fixture (seed 42).
+function setDefault(){ $("asof").value = "2026-10-12"; }
+const LABEL = {balanced:"balanced", under_coverage:"heavy inbound", idle_risk:"idle risk",
+               no_inbound:"no inbound", insufficient_evidence:"insufficient evidence"};
+function fmtTs(s){return s ? s.replace("T"," ").slice(5,16) : "—"}
+function renderBoard(plan){
+  $("src_chip").textContent = "labor source: " + (plan.summary.labor_source || "none");
+  const bs = plan.summary.by_status;
+  $("sum_chip").textContent = `${plan.summary.trucks_in_window} trucks · ${bs.idle_risk} idle-risk · ${bs.under_coverage} heavy`;
+  $("sum_chip").className = "chip " + (bs.idle_risk||bs.under_coverage ? "warn" : "ok");
+  $("board").innerHTML = plan.days.map(d=>`
+    <div class="day ${d.status}">
+      <div class="day-date">${d.date}</div>
+      <div class="day-status">${LABEL[d.status]}</div>
+      <div class="day-row"><span>trucks due</span><b>${d.trucks_due}</b></div>
+      <div class="day-row"><span>slipped / cancelled</span><b>${d.trucks_slipped}</b></div>
+      <div class="day-row"><span>unload est.</span><b>${d.unload_minutes_est} min</b></div>
+      <div class="day-row"><span>labor planned (day)</span><b>${d.planned_labor_minutes==null?"—":Math.round(d.planned_labor_minutes)+" min"}</b></div>
+      <div class="day-row"><span>receiving window</span><b>${d.receiving_window_labor_minutes==null?"—":Math.round(d.receiving_window_labor_minutes)+" min"}</b></div>
+      <div class="day-row"><span>receiving share</span><b>${d.receiving_share==null?"—":(d.receiving_share*100).toFixed(0)+"%"}</b></div>
+      ${d.idle_minutes_at_risk?`<div class="day-row risk"><span>idle minutes at risk</span><b>${d.idle_minutes_at_risk}</b></div>`:""}
+    </div>`).join("");
+  $("lineage").textContent = JSON.stringify({window: plan.window, summary: plan.summary, lineage: plan.lineage}, null, 2);
+}
+function renderTable(rows){
+  const tb = $("tbl").querySelector("tbody");
+  tb.innerHTML = rows.map(s=>`<tr>
+    <td>${s.shipment_id}</td><td>${s.truck_id}</td><td>${s.dc_id}</td><td>${s.carrier}</td>
+    <td>${fmtTs(s.planned_arrival_utc)}</td><td>${fmtTs(s.eta_utc)}</td>
+    <td>${s.delay_minutes>0?"+":""}${s.delay_minutes} min</td>
+    <td><span class="status ${s.status}">${s.status}</span></td>
+    <td>${s.pallets}</td><td>${s.unload_minutes_est} min</td></tr>`).join("")
+    || '<tr><td colspan="10">No trucks in window.</td></tr>';
+}
+async function refresh(){
+  const sid=$("store").value; const asof=$("asof").value+"T00:00:00Z"; const h=$("horizon").value;
+  const [r, plan] = await api(`/api/v1/stores/${sid}/inbound/labor-plan?as_of=${asof}&horizon_days=${h}`);
+  if (!r.ok){$("board").innerHTML=`<div class="day insufficient_evidence">error ${r.status}: ${plan.detail||plan.message||""}</div>`;$("lineage").textContent=JSON.stringify(plan,null,2);return}
+  renderBoard(plan);
+  const to = new Date(Date.parse(asof) + h*86400000).toISOString();
+  const [r2, rows] = await api(`/api/v1/stores/${sid}/inbound/shipments?from=${asof}&to=${to}`);
+  renderTable(r2.ok ? rows : []);
+}
+async function plan(){
+  const sid=$("store").value; const asof=$("asof").value+"T00:00:00Z"; const h=$("horizon").value;
+  $("plan-out").style.display=""; $("plan-pre").textContent="running inbound_logistics → store_performance → workforce → operations_advisor …";
+  const [r, body] = await api(`/api/v1/agents/plan-inbound-labor?store_id=${sid}&as_of=${asof}&horizon_days=${h}`, {method:"POST"});
+  if (!r.ok || body.status!=="ok"){$("plan-pre").textContent=JSON.stringify(body,null,2);return}
+  const rec = body.output.advisor.recommendation;
+  const f = body.output.inbound_logistics.findings;
+  $("plan-summary").innerHTML = `<b>${rec.title}</b><br><span style="color:var(--muted)">${rec.rationale}</span><br>
+    <span class="chip">run ${body.run_id.slice(0,8)}</span><span class="chip">${body.step_count} tool calls</span>
+    <span class="chip">${f.length} inbound finding(s)</span><span class="chip warn">${rec.status}</span>`;
+  $("plan-pre").textContent = JSON.stringify({findings: f, recommendation: rec}, null, 2);
+}
+// Deep links: /inbound.html?store=S001&asof=2026-10-12&horizon=5&plan=1
+(async()=>{
+  setDefault(); await loadStores();
+  const q = new URLSearchParams(window.location.search);
+  if (q.get("store") && [...$("store").options].some(o=>o.value===q.get("store"))) $("store").value=q.get("store");
+  if (q.get("asof")) $("asof").value=q.get("asof");
+  if (q.get("horizon")) $("horizon").value=q.get("horizon");
+  $("run").onclick=refresh; $("plan").onclick=plan;
+  $("token").onchange=async()=>{await loadStores(); refresh()}; $("store").onchange=refresh;
+  await refresh();
+  if (q.get("plan")==="1") await plan();
+})();
+</script>
+</body>
+</html>

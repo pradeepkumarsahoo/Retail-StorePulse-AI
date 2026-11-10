@@ -141,6 +141,71 @@ def test_anomaly_detail_scope_denied(engine):
                   {"anomaly_id": aid})
 
 
+# --- TMS tools -------------------------------------------------------------
+
+def test_tms_tools_denied_outside_inbound_allowlists(engine):
+    metrics.reset()
+    _seed_ai_run(engine)
+    ctx = Context(engine=engine, principal=ADMIN)
+    args = {"store_id": "S001", "from_date": "2026-10-01", "horizon_days": 5}
+    # Briefing and store_performance never read raw TMS records.
+    for agent in ("briefing", "store_performance", "anomaly_investigator"):
+        with pytest.raises(ToolDenied):
+            call_tool(ctx, "RUN_GW", 1, agent, "tms.shipments.list", args)
+    out = metrics.render_prometheus()
+    assert 'storepulse_tool_calls_total{status="denied",tool="tms.shipments.list"} 3' in out
+
+
+def test_tms_shipments_list_proxied_for_inbound_logistics(engine):
+    _seed_ai_run(engine)
+    ctx = Context(engine=engine, principal=ADMIN)
+    out = call_tool(ctx, "RUN_GW", 1, "inbound_logistics", "tms.shipments.list",
+                    {"store_id": "S001", "from_date": "2026-10-01", "horizon_days": 5})
+    assert [s["shipment_id"] for s in out["shipments"]] == ["SHP-000001", "SHP-000002"]
+    assert out["server"]["name"] == "tms-inbound-shipments"
+
+
+def test_tms_horizon_over_five_days_rejected_by_schema(engine):
+    _seed_ai_run(engine)
+    ctx = Context(engine=engine, principal=ADMIN)
+    with pytest.raises(ToolInvocationError):
+        call_tool(ctx, "RUN_GW", 1, "inbound_logistics", "tms.shipments.list",
+                  {"store_id": "S001", "from_date": "2026-10-01", "horizon_days": 6})
+
+
+def test_tms_shipments_scope_denied_for_other_region(engine):
+    _seed_ai_run(engine)
+    ctx = Context(engine=engine, principal=WEST)
+    with pytest.raises(ToolDenied):
+        call_tool(ctx, "RUN_GW", 1, "inbound_logistics", "tms.shipments.list",
+                  {"store_id": "S002", "from_date": "2026-10-01", "horizon_days": 2})
+
+
+def test_tms_shipment_get_scope_checked_on_owning_store(engine):
+    _seed_ai_run(engine)
+    ctx = Context(engine=engine, principal=WEST)
+    # SHP-000003 belongs to S002 (Midwest) — guessing the id must not leak it.
+    with pytest.raises(ToolDenied):
+        call_tool(ctx, "RUN_GW", 1, "inbound_logistics", "tms.shipment.get",
+                  {"shipment_id": "SHP-000003"})
+    ok = call_tool(ctx, "RUN_GW", 2, "inbound_logistics", "tms.shipment.get",
+                   {"shipment_id": "SHP-000001"})
+    assert ok["store_id"] == "S001"
+
+
+def test_inbound_plan_check_available_to_workforce_and_advisor(engine, seed_window):
+    _seed_ai_run(engine)
+    start, _ = seed_window
+    ctx = Context(engine=engine, principal=ADMIN)
+    for agent in ("workforce", "operations_advisor", "inbound_logistics"):
+        out = call_tool(ctx, "RUN_GW", 1, agent, "inbound.labor_plan_check",
+                        {"store_id": "S001", "as_of_utc": start, "horizon_days": 2})
+        assert out["lineage"]["check_name"] == "inbound_labor_plan_check"
+    with pytest.raises(ToolDenied):
+        call_tool(ctx, "RUN_GW", 1, "briefing", "inbound.labor_plan_check",
+                  {"store_id": "S001", "as_of_utc": start, "horizon_days": 2})
+
+
 def test_tool_call_records_sequence_and_agent(engine, seed_window):
     _seed_ai_run(engine)
     start, end = seed_window

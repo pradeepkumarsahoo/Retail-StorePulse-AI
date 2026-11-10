@@ -57,6 +57,45 @@ TRAFFIC_COUNT_SCHEMA = DataFrameSchema(
 )
 
 
+INBOUND_SHIPMENT_STATUSES = ["scheduled", "in_transit", "delayed", "arrived", "cancelled"]
+
+
+INBOUND_SHIPMENT_SCHEMA = DataFrameSchema(
+    {
+        "shipment_id": Column(str, Check.str_matches(r"^SHP-\d{6}$"), unique=True),
+        "store_id": Column(str, Check.str_matches(r"^S\d{3}$")),
+        "dc_id": Column(str, Check.str_matches(r"^DC\d{2}$")),
+        "truck_id": Column(str, Check.str_matches(r"^TRK-\d{4}$")),
+        "carrier": Column(str),
+        "planned_arrival_utc": Column("datetime64[ns, UTC]"),
+        "eta_utc": Column("datetime64[ns, UTC]"),
+        "status": Column(str, Check.isin(INBOUND_SHIPMENT_STATUSES)),
+        # Negative = early. Anything beyond 3 days late is a TMS data error, not a truck.
+        "delay_minutes": Column(int, Check.in_range(-240, 60 * 72)),
+        "pallets": Column(int, Check.in_range(0, 60)),        # <= 60 pallets per trailer
+        "cases": Column(int, Check.ge(0)),
+        "unload_minutes_est": Column(int, Check.in_range(0, 60 * 24)),
+        "source_system": Column(str),
+        "schema_version": Column(str),
+    },
+    strict=True,
+    coerce=True,
+    checks=[
+        Check(
+            lambda df: (
+                ((df["eta_utc"] - df["planned_arrival_utc"]).dt.total_seconds() // 60).astype(int)
+                == df["delay_minutes"]
+            ),
+            error="delay_minutes must equal eta_utc - planned_arrival_utc in minutes",
+        ),
+        Check(
+            lambda df: ~((df["pallets"] == 0) & (df["cases"] > 0)),
+            error="cases without pallets is not a valid TMS load",
+        ),
+    ],
+)
+
+
 STORE_SCHEMA = DataFrameSchema(
     {
         "store_id": Column(str, Check.str_matches(r"^S\d{3}$"), unique=True),

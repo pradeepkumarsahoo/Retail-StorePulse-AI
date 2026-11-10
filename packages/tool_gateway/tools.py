@@ -34,7 +34,9 @@ from packages.analytics.kpi_service import (
 from packages.anomaly_detection.detector import get_anomaly, list_anomalies
 from packages.domain.entities import KpiWindow
 from packages.forecasting.service import get_forecast
+from packages.inbound_planning.service import labor_plan_check
 from services.labor_rate_mcp.server import LaborRateMcp
+from services.tms_mcp.server import TMS_MAX_HORIZON_DAYS, TmsMcp
 
 
 @dataclass
@@ -107,6 +109,23 @@ class LaborRateResult(BaseModel):
     currency: str
     source: str
     version: str
+
+
+class TmsShipmentsArgs(BaseModel):
+    """TMS lookahead. The horizon is capped server-side at 5 days (ADR-0013)."""
+    store_id: str = Field(pattern=r"^S\d{3}$")
+    from_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    horizon_days: int = Field(default=TMS_MAX_HORIZON_DAYS, ge=1, le=TMS_MAX_HORIZON_DAYS)
+
+
+class TmsShipmentArgs(BaseModel):
+    shipment_id: str = Field(pattern=r"^SHP-\d{6}$")
+
+
+class InboundPlanArgs(BaseModel):
+    store_id: str = Field(pattern=r"^S\d{3}$")
+    as_of_utc: datetime
+    horizon_days: int = Field(default=TMS_MAX_HORIZON_DAYS, ge=1, le=TMS_MAX_HORIZON_DAYS)
 
 
 # --- Tool implementations --------------------------------------------------
@@ -256,6 +275,27 @@ def tool_mcp_labor_rate(ctx: Context, args: LaborRateArgs) -> dict:
     })
 
 
+def tool_tms_shipments_list(ctx: Context, args: TmsShipmentsArgs) -> dict:
+    """5-day inbound truck outlook for one store, via the TMS MCP adapter."""
+    _scope_check(ctx, args.store_id)
+    return TmsMcp(ctx.engine).call_tool("list_inbound_shipments", {
+        "store_id": args.store_id, "from_date": args.from_date,
+        "horizon_days": args.horizon_days,
+    })
+
+
+def tool_tms_shipment_get(ctx: Context, args: TmsShipmentArgs) -> dict:
+    shp = TmsMcp(ctx.engine).call_tool("get_inbound_shipment", {"shipment_id": args.shipment_id})
+    _scope_check(ctx, shp["store_id"])   # scope is checked on the *owning* store
+    return shp
+
+
+def tool_inbound_labor_plan_check(ctx: Context, args: InboundPlanArgs) -> dict:
+    """Deterministic join of TMS trucks to the labor plan per day."""
+    _scope_check(ctx, args.store_id)
+    return labor_plan_check(ctx.engine, args.store_id, args.as_of_utc, args.horizon_days)
+
+
 # --- Allowlist ------------------------------------------------------------
 
 @dataclass(frozen=True)
@@ -280,15 +320,21 @@ TOOLS: dict[str, ToolSpec] = {
     "anomaly.list":         ToolSpec("anomaly.list",         "List open anomalies visible to the caller.",           AnomalyListArgs,   tool_list_anomalies),
     "anomaly.detail":       ToolSpec("anomaly.detail",       "Fetch the evidence record for one anomaly.",           AnomalyDetailArgs, tool_anomaly_detail),
     "mcp.labor_rate.get":   ToolSpec("mcp.labor_rate.get",   "Approved labor-rate reference via the MCP adapter.",   LaborRateArgs,     tool_mcp_labor_rate),
+    # TMS integration — read-only, horizon-capped at 5 days.
+    "tms.shipments.list":   ToolSpec("tms.shipments.list",   "Inbound DC trucks for one store, up to 5 days ahead (TMS MCP adapter).", TmsShipmentsArgs, tool_tms_shipments_list),
+    "tms.shipment.get":     ToolSpec("tms.shipment.get",     "One inbound shipment record by id (TMS MCP adapter).",                   TmsShipmentArgs,  tool_tms_shipment_get),
+    "inbound.labor_plan_check": ToolSpec("inbound.labor_plan_check", "Per-day join of TMS trucks to the labor plan: idle risk / under-coverage.", InboundPlanArgs, tool_inbound_labor_plan_check),
 }
 
 
 # Per-agent allowlists — each specialist sees only what it needs.
 AGENT_ALLOWLISTS: dict[str, frozenset[str]] = {
     "store_performance":   frozenset({"kpi.splh", "kpi.net_sales", "kpi.transactions", "kpi.atv", "kpi.upt", "kpi.visitors", "kpi.conversion_rate", "stores.list"}),
-    "workforce":           frozenset({"kpi.splh", "kpi.labor_cost_pct", "forecast.labor", "mcp.labor_rate.get", "stores.list"}),
+    "workforce":           frozenset({"kpi.splh", "kpi.labor_cost_pct", "forecast.labor", "mcp.labor_rate.get", "stores.list", "inbound.labor_plan_check"}),
     "anomaly_investigator":frozenset({"anomaly.list", "anomaly.detail", "kpi.net_sales", "kpi.splh", "kpi.transactions", "kpi.visitors", "kpi.conversion_rate", "forecast.labor"}),
-    "operations_advisor":  frozenset({"kpi.splh", "kpi.net_sales", "kpi.labor_cost_pct", "kpi.conversion_rate", "anomaly.list", "forecast.labor", "mcp.labor_rate.get"}),
+    "operations_advisor":  frozenset({"kpi.splh", "kpi.net_sales", "kpi.labor_cost_pct", "kpi.conversion_rate", "anomaly.list", "forecast.labor", "mcp.labor_rate.get", "inbound.labor_plan_check"}),
     "briefing":            frozenset({"kpi.splh", "kpi.net_sales", "kpi.transactions", "kpi.atv", "kpi.conversion_rate", "anomaly.list", "forecast.labor"}),
+    # Inbound Logistics Planner: the only agent that may read raw TMS shipment records.
+    "inbound_logistics":   frozenset({"tms.shipments.list", "tms.shipment.get", "inbound.labor_plan_check", "forecast.labor", "stores.list"}),
     # Supervisor itself does not call tools; it dispatches.
 }
