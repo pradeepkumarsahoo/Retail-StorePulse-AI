@@ -20,6 +20,7 @@
 2. [Problem statement](#2-problem-statement)
 3. [Proposed solution](#3-proposed-solution)
    - [TMS integration & inbound labor planning (v1.1)](#tms-integration--inbound-labor-planning-v11)
+   - [Screens: what problem each one solves](#screens-what-problem-each-one-solves)
 4. [Architecture](#4-architecture)
    - [System diagram](#system-architecture)
    - [Agentic architecture](#agentic-architecture)
@@ -131,6 +132,36 @@ Same-day slips of 2 h or more are attached as `late` evidence. Labor comes from 
 
 **Guardrails.** The workflow is read-only on both the TMS and the schedule. It estimates workload and never names, ranks, or schedules an individual employee. Every recommendation goes to a human reviewer. Design rationale: [ADR-0013 and ADR-0014](docs/DECISIONS.md).
 
+### Screens: what problem each one solves
+
+The clickable prototypes in [`docs/screens/`](docs/screens/) follow one story. **Alex Chen**, regional manager for Chicago Metro (5 stores), opens the morning briefing: Store #042 (Downtown Chicago) missed its sales target by 8.4% despite normal footfall. Each screen takes Alex one step further, from regional signal to store, to root cause, to labor and inbound-truck planning, to a human-approved action. Every claim on the way is tied to evidence.
+
+Open [`docs/screens/index.html`](docs/screens/index.html) in a browser to click through it, or [`docs/screens/tour.html`](docs/screens/tour.html) for a 65-second auto-playing tour. Neither needs a server.
+
+| # | Screen | Problem it solves ([§2](#2-problem-statement)) | Before | With StorePulse-AI |
+|---|---|---|---|---|
+| 01 | **Regional command center** · [prototype](docs/screens/regional.html) | **Fragmented visibility** (#1) and **three versions of SPLH** (#5) | Sales from POS, labor from workforce management, footfall from traffic counters, each in a different tab and reconciled by hand. Teams argue over whose number is right. | One governed view of all 5 stores: net sales vs target, transactions, average transaction value, labor cost %, sales per labor hour. Every KPI comes from one central metric catalog. Stores needing attention (#042, #211) are ranked, with a link to the open anomaly. |
+| 02 | **Store performance** · [prototype](docs/screens/store.html) | **Reactive management**: dashboards describe but don't diagnose (#2) | The manager waits for a week-end PDF and then asks "why?" | Store #042 shows what moved yesterday by department and by hour, with a 30-day trend against target. Anomalies are already surfaced with their evidence (conversion −23 pp in Electronics, Tue 10am–2pm). |
+| 03 | **Root-cause investigation** · [prototype](docs/screens/anomaly.html) | **Late signals and opaque root cause** (#2, #4) | The manager calls four people to piece a story together, and the week is over before anyone knows why. | A bounded, audited agent run ranks contributing factors with confidence scores and cited sources: a POS register error spike, a 2-associate coverage gap, and external causes ruled out. It lists alternative explanations it considered, then makes one reviewable recommendation (REC-5518) that names no employee. |
+| 04 | **Workforce intelligence** · [prototype](docs/screens/workforce.html) | **Workforce mismatch**: static staffing built on weekly averages (#3) | Weekly averages hide the hourly peaks, so conversion is lost at the peak and paid hours sit idle in troughs. | An hourly forecast vs scheduled vs actual coverage chart exposes the recurring Tue 10am–2pm −1.8 FTE gap. The model is scored against a seasonal baseline (WAPE/MAE/RMSE), and what-if scenarios are priced with the approved labor-rate reference. It forecasts workload, not people, and never changes a schedule. |
+| 05 | **Daily briefing & approvals** · [prototype](docs/screens/briefing.html) | **Slow decision cycles and trust gaps** (#4) | Five report tabs before 9am, and AI output nobody can verify. | One evidence-linked morning read: yesterday in review, 3 priorities, workforce observations, and an explicit *"what this briefing does **not** say"* block. Data caveats are listed. The approval queue is on the same page, and every decision is audited. |
+| 06 | **Inbound logistics (TMS)** · [prototype](docs/screens/inbound.html) | **DC truck ETA not joined to the shift plan** (#6) | On Monday the TMS knows Thursday's truck will slip to Friday. The store finds out on Thursday at 7am, after the receiving crew has clocked in. | The 5-day truck outlook is joined to the labor plan for each day. A slipped truck becomes an *idle-risk* day (325 receiving minutes at risk), and a double-trailer Saturday becomes a *heavy inbound* day (67% of the receiving window). The agent proposes re-sequencing receiving work, with total planned hours unchanged, before the day starts. |
+
+The prototypes use an illustrative scenario (Store #042, Nov 2026, illustrative model versions and scores). The live build uses the seed-42 synthetic dataset (stores S001–S005), so the numbers differ by design.
+
+**Prototype → live build.** Four of the six screens run today against the real API (`python -m uvicorn apps.api.main:app`). The rest have their API in place and are waiting for the M8 React frontend.
+
+| Prototype | Live screen ([`apps/api/static/`](apps/api/static/)) | API behind it |
+|---|---|---|
+| 01 Regional | ✅ [`index.html`](apps/api/static/index.html): 8 KPI tiles with lineage, per-token scope | `/api/v1/kpi/*` |
+| 02 Store | ⏳ prototype only | `/api/v1/kpi/*`, `/api/v1/anomalies` |
+| 03 Investigation | ✅ [`investigation.html`](apps/api/static/investigation.html): agent run, per-specialist output, audit trail | `/api/v1/agents/investigate-*`, `/api/v1/audit` |
+| 04 Workforce | ⏳ prototype only | `/api/v1/stores/{id}/workforce/forecast` |
+| 05 Briefing & approvals | ✅ approvals part: [`approvals.html`](apps/api/static/approvals.html) (approve / reject / start / complete) · ⏳ briefing view | `/api/v1/recommendations*`, `/api/v1/agents/briefing` |
+| 06 Inbound (TMS) | ✅ [`inbound.html`](apps/api/static/inbound.html): 5-day board, shipments, "Plan labor with AI" | `/api/v1/stores/{id}/inbound/*`, `/api/v1/agents/plan-inbound-labor` |
+
+Problems #7 (weather/events/news) and #8 (customer sentiment) have no screen yet; they are roadmap items M9 and M11. The stakeholder briefing [`docs/architecture.html`](docs/architecture.html) gives the full problem framing, architecture, and guardrails behind these screens.
+
 ---
 
 ## 4. Architecture
@@ -141,7 +172,7 @@ Same-day slips of 2 h or more are attached as `late` evidence. Labor comes from 
 
 Four logical layers in a single deployable:
 
-- **Presentation** — static HTML tiles today (React+Vite from M5). Three live screens: Regional, Investigation, Approvals.
+- **Presentation** — static HTML screens today (React+Vite from M8). Four live screens: Regional, Inbound (TMS), Investigation, Approvals. Six clickable prototypes in `docs/screens/` ([what each solves](#screens-what-problem-each-one-solves)).
 - **API & Application** — FastAPI `/api/v1`, Pydantic contracts, demo bearer auth, RBAC + region/store scope on every endpoint, correlation IDs, structured errors.
 - **Core pillars**
   - *Analytics* — 8 KPIs with central metric catalog + lineage. Forecasting (seasonal baseline). Anomaly detection (robust z-score + thresholds).
@@ -770,7 +801,7 @@ See [`docs/DECISIONS.md`](docs/DECISIONS.md) for every ADR and its trade-offs.
 
 - **No real identity provider.** Demo bearer only. OIDC drops in at `authenticate()`.
 - **No TLS, CSRF, CSP, or dependency scan.** Deployment hardening is M7.
-- **No React+Vite frontend yet.** Node wasn't available on the build box — the design prototypes in `docs/screens/` are not wired to the live API.
+- **No React+Vite frontend yet.** Node wasn't available on the build box — the design prototypes in `docs/screens/` are not wired to the live API. Store, Workforce and the Briefing view exist only as prototypes; their APIs are live ([mapping](#screens-what-problem-each-one-solves)).
 - **MCP uses an in-process adapter**, not the official stdio/sse SDK transport. Shape is identical; swap is M7.
 - **Postgres is M7**, SQLite today. ANSI-SQL keeps the port cheap.
 - **Synthetic labor model is intentionally generous** (SPLH ≈ $13/hr on seed=42). Demand-shaped labor baselines land in a later milestone.
