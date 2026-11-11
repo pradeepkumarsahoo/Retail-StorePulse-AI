@@ -93,3 +93,9 @@ th { color: var(--muted); font-size: 10px; letter-spacing: 0.14em; text-transfor
 .status.scheduled, .status.in_transit, .status.arrived { background: rgba(16,185,129,0.12); color: var(--emerald); }
 .status.delayed { background: rgba(245,158,11,0.12); color: var(--amber); }
 .status.cancelled { background: rgba(244,63,94,0.12); color: var(--rose); }
+
+/* Energy (HVAC schedule check) day statuses */
+.day.aligned { border-color: rgba(16,185,129,0.4); }  .day.aligned .day-status { color: var(--emerald); }
+.day.waste { border-color: rgba(244,63,94,0.5); background: rgba(244,63,94,0.06); } .day.waste .day-status { color: var(--rose); }
+.day.comfort_risk { border-color: rgba(245,158,11,0.5); background: rgba(245,158,11,0.06); } .day.comfort_risk .day-status { color: var(--amber); }
+.day-row.save b { color: var(--emerald); }

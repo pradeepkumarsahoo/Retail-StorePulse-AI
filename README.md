@@ -4,10 +4,11 @@
 > Governed, evidence-first decision intelligence for multi-store retailers.
 
 <p>
-<a href="#test-results">213 tests · all passing</a> ·
+<a href="#test-results">253 tests · all passing</a> ·
 <a href="#5-security-posture-owasp-aligned">OWASP-mapped controls</a> ·
-<a href="#agentic-architecture">6 specialist agents + supervisor</a> ·
+<a href="#agentic-architecture">7 specialist agents + supervisor</a> ·
 <a href="#tms-integration--inbound-labor-planning-v11">TMS inbound labor planning</a> ·
+<a href="#forecast-driven-hvac--energy-v12">Forecast-driven HVAC</a> ·
 <a href="#6-observability-logging--monitoring">JSON logs · Prometheus metrics</a> ·
 <a href="#7-human-in-the-loop-approval-workflow">Human-approved recommendations</a>
 </p>
@@ -20,6 +21,7 @@
 2. [Problem statement](#2-problem-statement)
 3. [Proposed solution](#3-proposed-solution)
    - [TMS integration & inbound labor planning (v1.1)](#tms-integration--inbound-labor-planning-v11)
+   - [Forecast-driven HVAC / energy (v1.2)](#forecast-driven-hvac--energy-v12)
    - [Screens: what problem each one solves](#screens-what-problem-each-one-solves)
 4. [Architecture](#4-architecture)
    - [System diagram](#system-architecture)
@@ -64,8 +66,9 @@ Multi-store retailers run on data that never meets in one place. A regional mana
 | 6 | DC truck ETA not joined to shift plan | Labor arrives, inventory doesn't; paid idle hours leak out as a silent tax |
 | 7 | Forecasts ignore weather, events, local news | Lost sales on surge days, paid idle labor on collapse days |
 | 8 | Customer sentiment measured by occasional NPS | Frustrated shoppers go unnoticed until review/return/churn |
+| 9 | HVAC runs on a fixed timetable, not on store activity | The building is heated or cooled for hours while empty; one monthly bill hides it |
 
-StorePulse-AI's v1.0 attacks items **1–5** head-on with a trusted metric layer, constrained agents, and a review queue. **v1.1 closes item 6** by joining the TMS 5-day truck outlook to the labor plan ([details](#tms-integration--inbound-labor-planning-v11)). Items 7–8 are explicit future scope.
+StorePulse-AI's v1.0 attacks items **1–5** head-on with a trusted metric layer, constrained agents, and a review queue. **v1.1 closes item 6** by joining the TMS 5-day truck outlook to the labor plan ([details](#tms-integration--inbound-labor-planning-v11)). **v1.2 closes item 9** by checking the HVAC timetable against the visitor forecast ([details](#forecast-driven-hvac--energy-v12)). Items 7–8 are explicit future scope.
 
 ---
 
@@ -84,7 +87,8 @@ A **modular monolith** with clean architecture and a strict trust boundary aroun
 | Audit trail, metric catalog, model versioning | ✅ v1.0 |
 | MCP labor-rate reference server (in-process adapter) | ✅ v1.0 |
 | **TMS integration & inbound labor planning** (5-day truck outlook ↔ labor plan, 6th specialist) | ✅ v1.1 |
-| Live TMS vendor API / telematics ETA · external signals (weather/events) · camera sentiment | ⏳ future |
+| **Forecast-driven HVAC / energy** (BMS schedule ↔ visitor forecast, meter, trucks; 7th specialist) | ✅ v1.2 |
+| Live TMS / BMS vendor APIs · external signals (weather/events) · camera sentiment | ⏳ future |
 
 Design pillars ("principles that shape every build decision"):
 
@@ -132,6 +136,49 @@ Same-day slips of 2 h or more are attached as `late` evidence. Labor comes from 
 
 **Guardrails.** The workflow is read-only on both the TMS and the schedule. It estimates workload and never names, ranks, or schedules an individual employee. Every recommendation goes to a human reviewer. Design rationale: [ADR-0013 and ADR-0014](docs/DECISIONS.md).
 
+### Forecast-driven HVAC / energy (v1.2)
+
+**The problem.** HVAC is usually the largest energy load in a non-food store, and it runs on a timetable set when the store opened, not on when customers and deliveries actually arrive. At the demo flagship the rooftop units start at 05:00, the floor is warm by 06:15, the doors open at 09:00, and the system runs until 22:00, an hour after close. The dock is heated for a 07:00 truck even on days the TMS already shows the truck has slipped. That is about **3 hours a day of conditioning an empty store**. Facilities see one monthly bill per store, so nobody connects the schedule to the traffic forecast the business already has.
+
+**What v1.2 adds.** StorePulse mirrors each store's building-management system (BMS) read-only and checks its HVAC timetable, hour by hour, against the visitor forecast, the energy meter and the TMS truck schedule. The same forecast that plans labor and receiving now plans the building.
+
+**What it saves**
+
+| | Illustrative (stakeholder deck) | Measured on seed-42 synthetic data |
+|---|---|---|
+| Basis | ~40 kW HVAC, 3 avoidable hours a day, $0.15/kWh, 365 days | Metered kWh, `run_energy_check`, 5-day window from 2026-10-12 |
+| Per store per day | ~120 kWh ≈ **$18** | S003 Loop Center (Chicago): ~88 kWh/day from the schedule, plus dock heat on no-truck days |
+| Per store per year | **~$6.6K**, ~44 MWh, ~16 t CO₂ | S003: **~$5.0K**, 33 MWh, 12 t CO₂ |
+| Five stores per year | ~$33K | **~$9.7K** (S002's schedule is already close to right) |
+| 40-store region per year | **~$263K** | — |
+
+Both columns count the schedule only. Dock-heating savings on slipped-truck days and peak-demand charges are extra. The pilot replaces the assumptions with each store's metered baseline. The case for the feature is in the stakeholder briefing ([`StorePulse-AI_Stakeholder_Briefing.pptx`](StorePulse-AI_Stakeholder_Briefing.pptx), slides 6–7, and [`docs/architecture.html`](docs/architecture.html)).
+
+| Piece | Where | What it does |
+|---|---|---|
+| BMS feed → validation → mirror | [`scripts/generate_data.py`](scripts/generate_data.py), [`packages/validation/schemas.py`](packages/validation/schemas.py) | Synthetic HVAC timetable per store plus hourly meter readings (10,800 rows on seed 42). Pandera contracts quarantine reversed schedules, HVAC kWh above total kWh, and implausible temperatures. |
+| BMS adapter (MCP-style) | [`services/bms_mcp/server.py`](services/bms_mcp/server.py) | Read-only tools `get_hvac_schedule` and `list_energy_readings` (history capped at 14 days). There is no write tool: facilities apply an approved change in the BMS. |
+| Visitor forecast | [`packages/forecasting/service.py`](packages/forecasting/service.py) | New forecast kind `visitors`, the same seasonal model as labor. It defines the occupied hours. |
+| `energy_hvac_schedule_check` | [`packages/energy_planning/service.py`](packages/energy_planning/service.py) | Deterministic per-day join. Recommended start = doors open − 15 min − the store's measured warm-up (p90); stop = close + 30 min. Early-start hours are priced at the metered holding load, late-stop hours from the meter, dock heating when the TMS shows no truck. Full lineage block. |
+| Energy Analyst (7th specialist) | [`packages/ai_orchestration/agents/energy_analyst.py`](packages/ai_orchestration/agents/energy_analyst.py) | The only agent allowed to read the BMS. Calls `bms.hvac_schedule.get` → `energy.hvac_schedule_check` → `kpi.visitors` through the gateway. |
+| `plan_store_energy` workflow | [`packages/ai_orchestration/supervisor.py`](packages/ai_orchestration/supervisor.py) | Energy Analyst (3 tool calls) → Store Performance (9) → Operations Advisor, which re-checks comfort before drafting a `pending_review` recommendation. |
+| API + Energy screen | [`apps/api/routers/energy.py`](apps/api/routers/energy.py), [`apps/api/static/energy.html`](apps/api/static/energy.html) | Schedule, 5-day HVAC check, and "Plan energy with AI". |
+
+**Day statuses** returned by the check:
+
+| Status | Rule |
+|---|---|
+| `waste` | Early start + late stop + dock heating without a truck ≥ **10 kWh** avoidable. |
+| `comfort_risk` | The BMS starts too late to reach setpoint before the doors open. The recommendation is to start *earlier*. |
+| `aligned` | The timetable matches store activity. |
+| `insufficient_evidence` | No visitor forecast or traffic, no meter data, or no BMS schedule. The check returns this instead of guessing. |
+
+**The live Energy screen** (`/energy.html?store=S003&asof=2026-10-12&plan=1`):
+
+![Energy screen](docs/images/energy-hvac-live.png)
+
+**Guardrails.** Comfort at opening and food safety are hard constraints: the advisor's comfort guard verifies that the recommended start plus the measured warm-up reaches setpoint before opening on every checked day, or it does not recommend the change. Nothing is written to the building system, and every recommendation goes to a human reviewer. The check is about the building and never names, ranks, or monitors an employee. Design rationale: [ADR-0015](docs/DECISIONS.md).
+
 ### Screens: what problem each one solves
 
 The clickable prototypes in [`docs/screens/`](docs/screens/) follow one story. **Alex Chen**, regional manager for Chicago Metro (5 stores), opens the morning briefing: Store #042 (Downtown Chicago) missed its sales target by 8.4% despite normal footfall. Each screen takes Alex one step further, from regional signal to store, to root cause, to labor and inbound-truck planning, to a human-approved action. Every claim on the way is tied to evidence.
@@ -146,10 +193,11 @@ Open [`docs/screens/index.html`](docs/screens/index.html) in a browser to click 
 | 04 | **Workforce intelligence** · [prototype](docs/screens/workforce.html) | **Workforce mismatch**: static staffing built on weekly averages (#3) | Weekly averages hide the hourly peaks, so conversion is lost at the peak and paid hours sit idle in troughs. | An hourly forecast vs scheduled vs actual coverage chart exposes the recurring Tue 10am–2pm −1.8 FTE gap. The model is scored against a seasonal baseline (WAPE/MAE/RMSE), and what-if scenarios are priced with the approved labor-rate reference. It forecasts workload, not people, and never changes a schedule. |
 | 05 | **Daily briefing & approvals** · [prototype](docs/screens/briefing.html) | **Slow decision cycles and trust gaps** (#4) | Five report tabs before 9am, and AI output nobody can verify. | One evidence-linked morning read: yesterday in review, 3 priorities, workforce observations, and an explicit *"what this briefing does **not** say"* block. Data caveats are listed. The approval queue is on the same page, and every decision is audited. |
 | 06 | **Inbound logistics (TMS)** · [prototype](docs/screens/inbound.html) | **DC truck ETA not joined to the shift plan** (#6) | On Monday the TMS knows Thursday's truck will slip to Friday. The store finds out on Thursday at 7am, after the receiving crew has clocked in. | The 5-day truck outlook is joined to the labor plan for each day. A slipped truck becomes an *idle-risk* day (325 receiving minutes at risk), and a double-trailer Saturday becomes a *heavy inbound* day (67% of the receiving window). The agent proposes re-sequencing receiving work, with total planned hours unchanged, before the day starts. |
+| 07 | **Energy (forecast-driven HVAC)** · [prototype](docs/screens/energy.html) | **HVAC runs on a fixed timetable, not on store activity** (#9) | The HVAC starts at 05:00 and runs until 22:00 on a 2011 timetable. The store is warm by 06:15 but opens at 09:00, and the dock is heated for a truck that slipped. One monthly bill hides all of it. | The BMS timetable is checked hour by hour against the visitor forecast, the meter and the TMS. Three empty hours a day become a priced finding (140 kWh, $21 that day; ~$6.6K a year) and a comfort-guarded schedule change (07:30–21:30) for a human to approve. |
 
 The prototypes use an illustrative scenario (Store #042, Nov 2026, illustrative model versions and scores). The live build uses the seed-42 synthetic dataset (stores S001–S005), so the numbers differ by design.
 
-**Prototype → live build.** Four of the six screens run today against the real API (`python -m uvicorn apps.api.main:app`). The rest have their API in place and are waiting for the M8 React frontend.
+**Prototype → live build.** Five of the seven screens run today against the real API (`python -m uvicorn apps.api.main:app`). The rest have their API in place and are waiting for the M8 React frontend.
 
 | Prototype | Live screen ([`apps/api/static/`](apps/api/static/)) | API behind it |
 |---|---|---|
@@ -159,6 +207,7 @@ The prototypes use an illustrative scenario (Store #042, Nov 2026, illustrative 
 | 04 Workforce | ⏳ prototype only | `/api/v1/stores/{id}/workforce/forecast` |
 | 05 Briefing & approvals | ✅ approvals part: [`approvals.html`](apps/api/static/approvals.html) (approve / reject / start / complete) · ⏳ briefing view | `/api/v1/recommendations*`, `/api/v1/agents/briefing` |
 | 06 Inbound (TMS) | ✅ [`inbound.html`](apps/api/static/inbound.html): 5-day board, shipments, "Plan labor with AI" | `/api/v1/stores/{id}/inbound/*`, `/api/v1/agents/plan-inbound-labor` |
+| 07 Energy (HVAC) | ✅ [`energy.html`](apps/api/static/energy.html): savings tiles, 5-day board, findings, "Plan energy with AI" | `/api/v1/stores/{id}/energy/*`, `/api/v1/agents/plan-store-energy` |
 
 Problems #7 (weather/events/news) and #8 (customer sentiment) have no screen yet; they are roadmap items M9 and M11. The stakeholder briefing [`docs/architecture.html`](docs/architecture.html) gives the full problem framing, architecture, and guardrails behind these screens.
 
@@ -172,11 +221,11 @@ Problems #7 (weather/events/news) and #8 (customer sentiment) have no screen yet
 
 Four logical layers in a single deployable:
 
-- **Presentation** — static HTML screens today (React+Vite from M8). Four live screens: Regional, Inbound (TMS), Investigation, Approvals. Six clickable prototypes in `docs/screens/` ([what each solves](#screens-what-problem-each-one-solves)).
+- **Presentation** — static HTML screens today (React+Vite from M8). Five live screens: Regional, Inbound (TMS), Energy (HVAC), Investigation, Approvals. Seven clickable prototypes in `docs/screens/` ([what each solves](#screens-what-problem-each-one-solves)).
 - **API & Application** — FastAPI `/api/v1`, Pydantic contracts, demo bearer auth, RBAC + region/store scope on every endpoint, correlation IDs, structured errors.
 - **Core pillars**
   - *Analytics* — 8 KPIs with central metric catalog + lineage. Forecasting (seasonal baseline). Anomaly detection (robust z-score + thresholds).
-  - *AI orchestration* — supervisor + 6 specialists. Typed tool gateway with per-agent allowlists. Deterministic LLM provider (production provider pluggable).
+  - *AI orchestration* — supervisor + 7 specialists. Typed tool gateway with per-agent allowlists. Deterministic LLM provider (production provider pluggable).
   - *Governance* — audit event stream, approval workflow, metric/prompt/model versioning.
 - **Data layer** — SQLAlchemy on SQLite (ANSI-SQL; Postgres swap in M7). Pandera validation at ingest, quarantine with reason codes.
 - **External · MCP adapter** — read-only Labor Rate Reference server exposing `get_labor_rate`, `list_labor_rate_regions`, `get_labor_rate_metadata`.
@@ -460,6 +509,8 @@ python -m scripts.load_db                             # Pandera-validated ingest
 python -m scripts.run_forecast --horizon-days 14      # fit seasonal baseline + evaluate WAPE/MAE
 python -m scripts.run_anomalies --days 30             # robust-zscore + coverage-gap detection
 python -m scripts.run_inbound_check --as-of 2026-10-12  # TMS trucks ↔ labor plan, next 5 days per store
+python -m scripts.run_forecast --kind visitors --horizon-days 14  # footfall forecast for the energy check
+python -m scripts.run_energy_check                     # BMS HVAC timetable ↔ store activity, every store
 ```
 
 Then start the service:
@@ -470,12 +521,13 @@ python -m uvicorn apps.api.main:app --port 8000
 
 ### Agent workflows
 
-Five composable triggers — each agent run creates an `ai_run` with full audit trail:
+Six composable triggers — each agent run creates an `ai_run` with full audit trail:
 
 | Trigger | Endpoint |
 |---|---|
 | Investigate a store (full KPI + workforce + advisor) | `POST /api/v1/agents/investigate-store` |
 | Plan inbound receiving labor from the TMS 5-day outlook | `POST /api/v1/agents/plan-inbound-labor` |
+| Align the HVAC schedule with store activity (BMS) | `POST /api/v1/agents/plan-store-energy` |
 | Investigate a specific anomaly (hypothesis ranking) | `POST /api/v1/agents/investigate-anomaly` |
 | Generate a daily store briefing | `POST /api/v1/agents/briefing` |
 | Approve / reject / start / complete a recommendation | `POST /api/v1/recommendations/:id/review` |
@@ -531,12 +583,20 @@ Full OpenAPI at `http://localhost:8000/docs`. Highlights:
 | GET | `/api/v1/stores/{store_id}/inbound/shipments?from=&to=` |
 | GET | `/api/v1/stores/{store_id}/inbound/labor-plan?as_of=&horizon_days=` |
 
+**Energy (BMS)** — `horizon_days` is 1–5; anything larger returns 422
+
+| Method | Path |
+|---|---|
+| GET | `/api/v1/stores/{store_id}/energy/schedule` |
+| GET | `/api/v1/stores/{store_id}/energy/hvac-check?as_of=&horizon_days=` |
+
 **Agents**
 
 | Method | Path |
 |---|---|
 | POST | `/api/v1/agents/investigate-store?store_id=&from=&to=` |
 | POST | `/api/v1/agents/plan-inbound-labor?store_id=&as_of=&horizon_days=` |
+| POST | `/api/v1/agents/plan-store-energy?store_id=&as_of=&horizon_days=` |
 | POST | `/api/v1/agents/investigate-anomaly?anomaly_id=` |
 | POST | `/api/v1/agents/briefing?store_id=&as_of_utc=` |
 
@@ -588,14 +648,18 @@ python -m scripts.run_anomalies --days 30
 # 6. Check TMS inbound trucks against the labor plan (next 5 days, every store)
 python -m scripts.run_inbound_check --as-of 2026-10-12
 
-# 7. Run the full test suite (213 tests)
+# 7. Forecast footfall, then check every store's HVAC timetable against it
+python -m scripts.run_forecast --kind visitors --horizon-days 14
+python -m scripts.run_energy_check
+
+# 8. Run the full test suite (253 tests)
 python -m pytest tests/ -v
 
-# 8. Start the API + UI
+# 9. Start the API + UI
 python -m uvicorn apps.api.main:app --port 8000
 ```
 
-Open `http://localhost:8000/` for the Regional Command Center tile, `/inbound.html` for the TMS inbound board, `/investigation.html` for agent investigations, `/approvals.html` for the human review queue.
+Open `http://localhost:8000/` for the Regional Command Center tile, `/inbound.html` for the TMS inbound board, `/energy.html` for the HVAC check, `/investigation.html` for agent investigations, `/approvals.html` for the human review queue.
 
 ### Live smoke test
 
@@ -626,47 +690,52 @@ curl -s -X POST -H "Authorization: Bearer demo-admin" \
 
 ```
 tests\integration\test_api_agents_e2e.py ..                              [  0%]
-tests\integration\test_api_inbound.py .......                            [  4%]
-tests\integration\test_api_kpis_and_security.py .........                [  8%]
-tests\integration\test_api_splh.py ........                              [ 12%]
+tests\integration\test_api_energy.py .......                             [  3%]
+tests\integration\test_api_inbound.py .......                            [  6%]
+tests\integration\test_api_kpis_and_security.py .........                [  9%]
+tests\integration\test_api_splh.py ........                              [ 13%]
 tests\security\test_prompt_injection.py ..                               [ 13%]
-tests\unit\test_agents.py .....................                          [ 23%]
-tests\unit\test_all_kpis.py ..........                                   [ 27%]
-tests\unit\test_anomaly_detector.py ..                                   [ 28%]
-tests\unit\test_anomaly_extras.py .........                              [ 32%]
-tests\unit\test_approval_workflow.py ....                                [ 34%]
-tests\unit\test_audit.py .......                                         [ 38%]
+tests\unit\test_agents.py .....................                          [ 22%]
+tests\unit\test_all_kpis.py ..........                                   [ 26%]
+tests\unit\test_anomaly_detector.py ..                                   [ 26%]
+tests\unit\test_anomaly_extras.py .........                              [ 30%]
+tests\unit\test_approval_workflow.py ....                                [ 32%]
+tests\unit\test_audit.py .......                                         [ 34%]
+tests\unit\test_bms_mcp.py ........                                      [ 37%]
 tests\unit\test_domain_entities.py ......                                [ 40%]
-tests\unit\test_fake_llm.py ..                                           [ 41%]
-tests\unit\test_forecast_baseline.py ....                                [ 43%]
-tests\unit\test_forecast_service.py ....                                 [ 45%]
-tests\unit\test_generator_determinism.py ...                             [ 46%]
-tests\unit\test_inbound_planning.py ..........                           [ 51%]
-tests\unit\test_inbound_schema.py .....                                  [ 53%]
-tests\unit\test_ingest.py .....                                          [ 56%]
-tests\unit\test_kpi_masters.py .....                                     [ 58%]
-tests\unit\test_logging.py .........                                     [ 62%]
-tests\unit\test_mcp_labor_rate.py ......                                 [ 65%]
-tests\unit\test_metrics.py ......                                        [ 68%]
-tests\unit\test_pandera_schemas.py ...                                   [ 69%]
-tests\unit\test_recommendations_list.py ........                         [ 73%]
-tests\unit\test_security.py ..............                               [ 80%]
-tests\unit\test_splh_math.py .....                                       [ 82%]
-tests\unit\test_supervisor.py ..........                                 [ 87%]
-tests\unit\test_tms_mcp.py ........                                      [ 91%]
-tests\unit\test_tool_gateway.py ....                                     [ 92%]
+tests\unit\test_energy_agents.py ........                                [ 43%]
+tests\unit\test_energy_planning.py ...........                           [ 47%]
+tests\unit\test_energy_schema.py ......                                  [ 50%]
+tests\unit\test_fake_llm.py ..                                           [ 50%]
+tests\unit\test_forecast_baseline.py ....                                [ 52%]
+tests\unit\test_forecast_service.py ....                                 [ 54%]
+tests\unit\test_generator_determinism.py ...                             [ 55%]
+tests\unit\test_inbound_planning.py ..........                           [ 59%]
+tests\unit\test_inbound_schema.py .....                                  [ 61%]
+tests\unit\test_ingest.py .....                                          [ 63%]
+tests\unit\test_kpi_masters.py .....                                     [ 65%]
+tests\unit\test_logging.py .........                                     [ 68%]
+tests\unit\test_mcp_labor_rate.py ......                                 [ 71%]
+tests\unit\test_metrics.py ......                                        [ 73%]
+tests\unit\test_pandera_schemas.py ...                                   [ 74%]
+tests\unit\test_recommendations_list.py ........                         [ 77%]
+tests\unit\test_security.py ..............                               [ 83%]
+tests\unit\test_splh_math.py .....                                       [ 85%]
+tests\unit\test_supervisor.py ..........                                 [ 89%]
+tests\unit\test_tms_mcp.py ........                                      [ 92%]
+tests\unit\test_tool_gateway.py ....                                     [ 94%]
 tests\unit\test_tool_gateway_more.py ...............                     [100%]
-====================== 213 passed, 1 warning in 46.23s ========================
+======================= 253 passed in 69.48s (0:01:09) ========================
 ```
 
 ### Test totals
 
 | Suite | Count |
 |---|---|
-| Unit — `tests/unit/` (26 files) | **185** |
-| Integration — `tests/integration/` (4 files) | **26** |
+| Unit — `tests/unit/` (30 files) | **218** |
+| Integration — `tests/integration/` (5 files) | **33** |
 | Security — `tests/security/` | **2** |
-| **Total** | **213** |
+| **Total** | **253** |
 
 ### What's covered — unit tests
 
@@ -689,11 +758,16 @@ Every module in `packages/`, `services/`, `infrastructure/`, and `apps/api/` has
 | **MCP labor-rate server** | [`test_mcp_labor_rate.py`](tests/unit/test_mcp_labor_rate.py) | Versioned record returned, unknown region/role rejected, malformed effective date rejected by Pydantic, unknown tool rejected, metadata correct. |
 | **TMS adapter** | [`test_tms_mcp.py`](tests/unit/test_tms_mcp.py) | Tool listing, store-scoped results, 5-day horizon cap, slipped trucks found by planned *or* ETA day, unknown shipment / unknown tool rejected, metadata declares read-only. |
 | **TMS data contract** | [`test_inbound_schema.py`](tests/unit/test_inbound_schema.py) | `delay_minutes` must equal ETA − planned, unknown status / cases without pallets / bad ids quarantined, good rows in a mixed batch kept. |
+| **BMS adapter** | [`test_bms_mcp.py`](tests/unit/test_bms_mcp.py) | Tool listing, schedule times formatted, unknown store / unknown tool rejected, meter history capped at 14 days, metadata declares read-only. |
+| **BMS data contract** | [`test_energy_schema.py`](tests/unit/test_energy_schema.py) | HVAC kWh above total, negative kWh, implausible temperature and reversed schedules quarantined. Generated BMS feed validates, is deterministic, and leaves the existing tables byte-identical. |
+| **Energy HVAC check** | [`test_energy_planning.py`](tests/unit/test_energy_planning.py) | Exact early-start / late-stop / dock kWh on a hand-computed day, `waste`, `aligned`, `comfort_risk`, `insufficient_evidence` (no occupancy, no BMS schedule), meter baseline fallback, slipped truck → dock heat, forecast preferred over traffic, horizon bounds, annualization, lineage. |
+| **Energy agents** | [`test_energy_agents.py`](tests/unit/test_energy_agents.py) | Energy Analyst tool order, BMS readable only by the Energy Analyst (and it cannot read raw TMS), advisor drafts a comfort-guarded recommendation, comfort-risk branch, guard fails when setpoint would be late, `plan_store_energy` writes one `ai_run` + audit event (12 steps). |
 | **Inbound labor-plan check** | [`test_inbound_planning.py`](tests/unit/test_inbound_planning.py) | `balanced`, `idle_risk` (slipped *and* cancelled trucks), `under_coverage` on heavy days, `no_inbound`, `insufficient_evidence` instead of a guess, forecast preferred over schedule, horizon bounds, complete lineage block. |
 | **Tool gateway** | [`test_tool_gateway.py`](tests/unit/test_tool_gateway.py), [`test_tool_gateway_more.py`](tests/unit/test_tool_gateway_more.py) | Unknown tool → `ToolNotFound`. Out-of-allowlist → `ToolDenied`. Cross-store scope → `ToolDenied`. Bad Pydantic args → `ToolInvocationError`. Metric counters incremented for `ok` / `denied` / `error`. MCP proxied. `stores.list` filtered to principal scope. Every attempt records a `tool_call` row with `seq`, `agent_name`, `status`. |
 | **LLM provider** | [`test_fake_llm.py`](tests/unit/test_fake_llm.py) | Byte-stable deterministic output; empty evidence emits "insufficient" message. |
 | **Supervisor orchestration** | [`test_supervisor.py`](tests/unit/test_supervisor.py) | Each workflow (`investigate_store`, `plan_inbound_labor`, `investigate_anomaly`, `daily_briefing`) writes exactly one `ai_run` row + one audit entry. `plan_inbound_labor` runs inbound → store performance → workforce → advisor. Unknown store / missing anomaly → `status="error"` persisted. `RunBudget(max_steps)` enforced. Token counting from the LLM provider. |
 | **Agent specialists** | [`test_agents.py`](tests/unit/test_agents.py) | `store_performance`: all 7 KPIs + 2 prior-window calls, `last_seq` arithmetic, `sales_change_pct` derived. `workforce`: all tools called, forecast capped at 24 points. `operations_advisor`: decision table (down/up/neutral/unknown) + forbidden-term policy check. `briefing`: narrative composed, LLM model stamp, window = prior day. `anomaly_investigator`: hypothesis ranking + fallback. `inbound_logistics`: reads TMS + plan check, emits idle-risk findings. Advisor: receiving-coverage plan for heavy days, inbound evidence outranks the sales trend. |
+| **Energy API + workflow** | `tests/integration/test_api_energy.py` | Schedule and HVAC-check endpoints with lineage, `horizon_days=6` → 422, West manager can't read Midwest energy, unknown store → 404, `plan-store-energy` creates a `pending_review` recommendation with the comfort guard passed and is scope-checked. |
 | **Inbound API + workflow** | `tests/integration/test_api_inbound.py` | Shipments and labor-plan endpoints return lineage, `horizon_days=6` → 422, West manager can't read Midwest trucks, store manager sees only their own store, `plan-inbound-labor` creates a `pending_review` recommendation and is scope-checked. |
 | **End-to-end agent flow** | `tests/integration/test_api_agents_e2e.py` | Investigate → `ai_run` + `tool_call[]` + `audit_event` → `recommendation` → reviewer approves → admin starts & completes. Store manager gets 403 on `/review`. |
 | **BOLA / BFLA** | `tests/integration/test_api_kpis_and_security.py` | West manager cannot see Midwest stores. S001 manager cannot see S002. Store manager cannot approve. Invalid token → 401. |
@@ -717,10 +791,11 @@ Retail-StorePulse-AI/
 │   ├── forecasting/                  # Seasonal baseline + evaluator
 │   ├── anomaly_detection/            # Robust z-score + coverage-gap detector
 │   ├── inbound_planning/             # TMS trucks ↔ labor plan check (per day, with lineage)
+│   ├── energy_planning/              # BMS HVAC timetable ↔ store activity check (comfort-guarded)
 │   ├── ai_orchestration/
 │   │   ├── supervisor.py
 │   │   ├── llm_provider.py           # Abstract + DeterministicProvider
-│   │   └── agents/                   # 6 specialists (incl. inbound_logistics)
+│   │   └── agents/                   # 7 specialists (incl. inbound_logistics, energy_analyst)
 │   ├── tool_gateway/
 │   │   ├── tools.py                  # Typed, allowlisted tools
 │   │   └── gateway.py                # Enforcement, recording
@@ -736,14 +811,16 @@ Retail-StorePulse-AI/
 │   └── server.py                     # MCP-style read-only adapter + seed_rates()
 ├── services/tms_mcp/
 │   └── server.py                     # MCP-style read-only TMS adapter, 5-day horizon cap
+├── services/bms_mcp/
+│   └── server.py                     # MCP-style read-only BMS adapter (HVAC schedule + meter)
 ├── infrastructure/db/                # SQLAlchemy models, engine, ingest
-├── scripts/                          # generate_data, load_db, run_forecast, run_anomalies, run_inbound_check
+├── scripts/                          # generate_data, load_db, run_forecast, run_anomalies, run_inbound_check, run_energy_check
 ├── data/synthetic/                   # Generator output (gitignored)
 ├── tests/
-│   ├── unit/                         # 185 tests across 26 files: KPI math, domain, forecasting, anomaly, ingest,
+│   ├── unit/                         # 218 tests across 30 files: KPI math, domain, forecasting, anomaly, ingest,
 │   │                                 #   tool gateway, MCP, LLM, approvals, audit, metrics, logging, RBAC,
 │   │                                 #   supervisor orchestration, each agent specialist
-│   ├── integration/                  # 26 API/agent tests incl. BOLA/BFLA
+│   ├── integration/                  # 33 API/agent tests incl. BOLA/BFLA
 │   └── security/                     # 2 tests — prompt injection, workflow abuse
 ├── docs/
 │   ├── images/                       # Inline SVG diagrams for this README
@@ -788,14 +865,15 @@ See [`docs/DECISIONS.md`](docs/DECISIONS.md) for every ADR and its trade-offs.
 - 8 KPIs with full lineage. Metric catalog seeded.
 - Seasonal workforce forecast (WAPE ≈ 4.2% on the synthetic fixture).
 - Robust-z anomaly detection (220 anomalies flagged across 30 days).
-- 6 specialist agents + supervisor (4 workflows) with step/token/time budgets.
+- 7 specialist agents + supervisor (5 workflows) with step/token/time budgets.
 - TMS inbound feed (144 shipments) mirrored read-only through an MCP-style adapter capped at 5 days, joined per day to the labor plan to flag idle-risk and heavy receiving days.
 - Typed tool gateway with per-agent allowlists; every call audited.
 - MCP-style labor-rate reference server with 8 synthetic rates.
 - Human approval workflow with state machine, approval events, audit events.
 - Demo auth (bearer) with RBAC + region/store scope on every endpoint.
 - Structured JSON logs + Prometheus-text `/metrics`.
-- Static UI: Regional, Inbound (TMS), Investigation, Approvals.
+- BMS HVAC timetable and hourly meter (10,800 readings) mirrored read-only, checked against the visitor forecast and TMS trucks: ~$9.7K/yr avoidable HVAC across the five synthetic stores, with a comfort guard on every recommendation.
+- Static UI: Regional, Inbound (TMS), Energy (HVAC), Investigation, Approvals.
 
 **Honest gaps:**
 
@@ -806,6 +884,7 @@ See [`docs/DECISIONS.md`](docs/DECISIONS.md) for every ADR and its trade-offs.
 - **Postgres is M7**, SQLite today. ANSI-SQL keeps the port cheap.
 - **Synthetic labor model is intentionally generous** (SPLH ≈ $13/hr on seed=42). Demand-shaped labor baselines land in a later milestone.
 - **TMS feed is synthetic.** The adapter contract is ready for a live TMS vendor API, but there is no live feed or telematics GPS ETA yet. Receiving labor uses the TMS `unload_minutes_est`, not measured unload times.
+- **BMS feed is synthetic, and savings are estimates until measured.** The adapter contract is ready for a live BMS (BACnet or cloud API). Avoidable kWh comes from the meter, but annualized dollars assume the pattern repeats and use a configurable $0.15/kWh tariff. Weather-normalised before/after measurement and peak-demand charges are not modelled yet.
 - **No external signals** (weather/events) or **camera sentiment**. These are explicit future scope.
 - **AI_GOVERNANCE.md, SECURITY_THREAT_MODEL.md, OWASP_CONTROL_MAPPING.md**: scaffolded but not formally signed-off. The controls themselves ship in v1.0; the formal review is M6.
 
@@ -820,6 +899,7 @@ See [`docs/DECISIONS.md`](docs/DECISIONS.md) for every ADR and its trade-offs.
 | **M8 — Frontend** | React + Vite application covering all 11 screens, accessibility, responsive |
 | **M9 — External signals** | Weather, event, transit, curated news feed with confidence scoring and auditable forecast adjusters |
 | **M10 — Live DC & truck tracking** | Live TMS vendor API and telematics ETA behind the v1.1 adapter; outbound-load view; intraday re-projection as ETAs move |
+| **M10.5 — Live energy** | Live BMS behind the v1.2 adapter; weather-normalised measurement & verification; peak-demand and tariff optimisation; refrigeration anomaly detection for food formats |
 | **M11 — Privacy-preserving camera sentiment** | Opt-in edge-inference computer vision, per-zone/per-hour service score, coaching nudges — *never* individual-employee scoring |
 
 ---

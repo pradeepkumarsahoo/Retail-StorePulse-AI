@@ -5,6 +5,7 @@ Trains on the first 80% of loaded history, predicts hourly for the remaining
 
 Usage:
     python -m scripts.run_forecast --kind labor_minutes --horizon-days 14
+    python -m scripts.run_forecast --kind visitors --horizon-days 14   # feeds the energy check
 """
 from __future__ import annotations
 
@@ -19,7 +20,7 @@ from packages.forecasting.service import run_forecast
 
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("--kind", choices=["labor_minutes", "net_sales_cents"],
+    p.add_argument("--kind", choices=["labor_minutes", "net_sales_cents", "visitors"],
                    default="labor_minutes")
     p.add_argument("--horizon-days", type=int, default=14)
     args = p.parse_args()

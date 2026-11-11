@@ -834,12 +834,12 @@
   <!-- PROBLEM STATEMENT -->
   <section id="problem-statement">
     <div class="eyebrow"><span class="enum">01</span> Problem Statement</div>
-    <h2 class="section-h">Eight fragmentation points that quietly cost every store.</h2>
+    <h2 class="section-h">Nine fragmentation points that quietly cost every store.</h2>
     <p class="section-intro">
       Large multi-store retailers run on data that never meets in one place. A regional manager overseeing 40 stores
       typically touches 6+ systems before 9am — POS, workforce management, inventory, labor-budget sheets, exception
       emails, BI dashboards — then reconciles the gaps in a spreadsheet. The data exists. The decision window does
-      not. Each day, measurable revenue and labor dollars leak through <strong>eight recurring fractures</strong> in the operating model.
+      not. Each day, measurable revenue and labor dollars leak through <strong>nine recurring fractures</strong> in the operating model.
     </p>
     <div class="problem-grid">
       <div class="problem-card">
@@ -932,6 +932,21 @@
           associate didn't know to engage, the shift lead didn't know to re-staff, and <strong>the same pattern repeats
           the next day in the same zones at the same hours</strong>. Managers are left asking "were we attentive today?"
           with no evidence to answer.</p>
+      </div>
+      <div class="problem-card">
+        <div class="problem-head">
+          <div class="problem-bullet"></div>
+          <span class="problem-num">Energy Waste</span>
+        </div>
+        <h3>Heating and cooling an empty store</h3>
+        <p><strong>HVAC is usually the largest energy load in a non-food store, and it runs on a fixed timetable</strong> set
+          when the store opened, not on when customers and deliveries actually arrive. At Store #042 the rooftop units
+          start at 05:00, the floor is warm by 06:15, the doors open at 09:00, and the system runs until 22:00, an hour
+          after close. The dock is heated for 07:00 trucks even on days the TMS already shows the truck has slipped.
+          <strong>That is about 3 hours a day of conditioning an empty building</strong>, roughly 120 kWh a day per store.
+          Facilities see one monthly bill per store, so <strong>nobody connects the schedule to the traffic forecast the
+          business already has</strong>. Illustratively, at ~40 kW and $0.15/kWh, the waste is <strong>about $6.6K per store
+          per year</strong> (~$263K across a 40-store region, ~16 t CO&#8322; per store) before peak-demand charges.</p>
       </div>
     </div>
     <div class="promise warm" style="margin-top: 36px;">
@@ -1036,6 +1051,17 @@
           individual employees</strong>; used to help associates give better attention, not to rank them.</p>
       </div>
       <div class="cap">
+        <div class="cap-tag"><span class="dot"></span>Energy</div>
+        <h3>Forecast-driven HVAC scheduling</h3>
+        <p>A read-only mirror of each store's building-management schedule and hourly meter readings, joined to the
+          same visitor forecast that already plans labor, plus the outdoor temperature and the TMS truck schedule.
+          A deterministic check finds the hours the store is heated or cooled while it is empty: pre-conditioning that
+          starts long before the store needs it, HVAC running after close, and dock heating for trucks that have slipped.
+          The Energy Advisor turns these into a reviewable schedule change (for example, start at 07:30 instead of
+          05:00) that keeps comfort at opening unchanged, and the briefing reports the kWh and dollars at stake. Nothing is written to
+          the building system; a human approves every change.</p>
+      </div>
+      <div class="cap">
         <div class="cap-tag"><span class="dot"></span>Governance</div>
         <h3>Audit &amp; approvals</h3>
         <p>Model versions, data-quality snapshots, run traces, tool-call logs, prompt and policy versions, and a
@@ -1054,6 +1080,7 @@
         <em>Trust</em> → one metric catalog, lineage, and model/version provenance on every claim.
         <em>Inbound blindspot</em> → DC &amp; truck tracking joined to the shift plan, so idle hours are predicted and redeployed before the day starts.
         <em>External signals</em> → weather, events, and curated news/social feeds become explicit, auditable adjusters on the weekly sales and labor forecast.
+        <em>Energy waste</em> → HVAC schedules checked hour by hour against the visitor forecast and truck schedule, so stores stop conditioning empty buildings.
         <em>Customer sentiment</em> → opt-in camera sentiment rolled into a daily service score, by zone and hour, with coaching nudges for shift leads — never individual employee scoring.
       </p>
     </div>

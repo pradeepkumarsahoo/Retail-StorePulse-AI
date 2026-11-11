@@ -1,6 +1,6 @@
 """FastAPI entrypoint: full v1.0 surface.
 
-Routers: health, kpi, forecast, inbound (TMS), anomaly, agents, recommendations,
+Routers: health, kpi, forecast, inbound (TMS), energy (BMS), anomaly, agents, recommendations,
 audit, metrics, plus a static UI at /.
 
 Cross-cutting:
@@ -22,6 +22,7 @@ from fastapi.staticfiles import StaticFiles
 from apps.api.routers import agents as agents_router
 from apps.api.routers import anomaly as anomaly_router
 from apps.api.routers import audit as audit_router
+from apps.api.routers import energy as energy_router
 from apps.api.routers import forecast as forecast_router
 from apps.api.routers import inbound as inbound_router
 from apps.api.routers import kpi as kpi_router
@@ -95,6 +96,7 @@ def health() -> HealthResponse:
 app.include_router(kpi_router.router)
 app.include_router(forecast_router.router)
 app.include_router(inbound_router.router)
+app.include_router(energy_router.router)
 app.include_router(anomaly_router.router)
 app.include_router(agents_router.router)
 app.include_router(reco_router.router)

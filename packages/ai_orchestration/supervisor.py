@@ -21,6 +21,7 @@ from sqlalchemy import text
 from packages.ai_orchestration.agents import (
     anomaly_investigator,
     briefing,
+    energy_analyst,
     inbound_logistics,
     operations_advisor,
     store_performance,
@@ -37,7 +38,7 @@ log = logging.getLogger("storepulse.supervisor")
 
 
 Intent = Literal["store_investigation", "anomaly_investigation", "daily_briefing",
-                 "inbound_labor_planning"]
+                 "inbound_labor_planning", "energy_planning"]
 
 
 @dataclass
@@ -233,6 +234,54 @@ class Supervisor:
                               "horizon_days": horizon_days})
         metrics.inc("storepulse_agent_runs_total", intent="inbound_labor_planning", status=status)
         return RunResult(run_id=run_id, status=status, intent="inbound_labor_planning",
+                         output=output, tokens_used=tokens, step_count=step, error=error)
+
+    def plan_store_energy(self, ctx: Context, store_id: str, as_of_utc: datetime,
+                          horizon_days: int = 5) -> RunResult:
+        """Forecast-driven HVAC: BMS schedule vs store activity → recommendation.
+
+        Specialists in order: energy_analyst (BMS schedule + energy check +
+        footfall), store_performance (trailing 7-day context),
+        operations_advisor (draft, comfort-guarded, policy-guarded).
+        """
+        run_id = str(uuid.uuid4())
+        started = time.perf_counter()
+        tokens = 0
+        step = 0
+        output: dict = {}
+        status = "ok"
+        error: str | None = None
+        try:
+            stores = list_stores(ctx.engine)
+            if not any(s["store_id"] == store_id for s in stores):
+                raise ValueError(f"Unknown store_id: {store_id}")
+
+            en = energy_analyst.run(ctx, run_id, store_id, as_of_utc, horizon_days=horizon_days)
+            step = en["last_seq"]
+            self._check_budget(step, tokens, started)
+
+            sp = store_performance.run(ctx, run_id, store_id, as_of_utc - timedelta(days=7),
+                                       as_of_utc, start_seq=step)
+            step = sp["last_seq"]
+            self._check_budget(step, tokens, started)
+
+            advisor = operations_advisor.run(ctx, run_id, sp, {}, investigations=None,
+                                             start_seq=step, energy=en)
+            output = {"energy_analyst": en, "store_performance": sp, "advisor": advisor}
+        except Exception as e:
+            status = "error"
+            error = str(e)
+            log.exception("plan_store_energy_failed", extra={"run_id": run_id})
+        _persist_run(ctx, run_id, ctx.principal.subject, "energy_planning",
+                     store_id, self.llm.name, "1.2.0",
+                     status, step, tokens, self.budget, output if status == "ok" else None, error)
+        record_audit(ctx.engine, actor=ctx.principal.subject,
+                     action="ai_run.energy_planning",
+                     target_type="ai_run", target_id=run_id,
+                     payload={"store_id": store_id, "status": status,
+                              "horizon_days": horizon_days})
+        metrics.inc("storepulse_agent_runs_total", intent="energy_planning", status=status)
+        return RunResult(run_id=run_id, status=status, intent="energy_planning",
                          output=output, tokens_used=tokens, step_count=step, error=error)
 
     def daily_briefing(self, ctx: Context, store_id: str, as_of_utc: datetime) -> RunResult:

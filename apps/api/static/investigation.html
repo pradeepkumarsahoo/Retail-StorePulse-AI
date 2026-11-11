@@ -21,6 +21,7 @@
       <nav class="nav">
         <a href="/">Regional</a>
         <a href="/inbound.html">Inbound</a>
+        <a href="/energy.html">Energy</a>
         <a href="/investigation.html" class="active">Investigation</a>
         <a href="/approvals.html">Approvals</a>
       </nav>
@@ -49,6 +50,13 @@
     <div style="color: var(--muted); font-size: 13px;">
       Runs in the <code>inbound_labor_planning</code> workflow (start it from the <a href="/inbound.html">Inbound</a> screen).
       Reads the Transport Management System through the typed gateway only; joins trucks due in the next 5 days to the labor plan.
+    </div>
+  </section>
+  <section class="evidence">
+    <h2>Energy Analyst <span class="chip">bms.hvac_schedule.get · energy.hvac_schedule_check</span></h2>
+    <div style="color: var(--muted); font-size: 13px;">
+      Runs in the <code>energy_planning</code> workflow (start it from the <a href="/energy.html">Energy</a> screen).
+      Reads the building-management system through the typed gateway only; finds the hours the store is heated or cooled while empty. Never writes a setpoint.
     </div>
   </section>
   <section class="evidence">

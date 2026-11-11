@@ -97,6 +97,29 @@ def _seed_dataset(engine: Engine, hours: list[datetime]) -> None:
         shipments[col] = pd.to_datetime(shipments[col], utc=True)
     validate_and_load(engine, shipments, "inbound_shipment")
 
+    # BMS mirror. S001 runs 05:00–22:00 (75-min warm-up, dock heated 06:30–09:00);
+    # S002 runs a schedule that already matches a 09:00–21:00 store.
+    hvac = pd.DataFrame([
+        {"store_id": "S001", "bms_id": "BMS-S001", "hvac_on_minute": 300, "hvac_off_minute": 1320,
+         "warmup_minutes_p90": 75, "dock_heat_on_minute": 390, "dock_heat_off_minute": 540,
+         "dock_heat_kw": 8.0, "setpoint_f": 72, "source_system": "test_bms", "schema_version": "1.0.0"},
+        {"store_id": "S002", "bms_id": "BMS-S002", "hvac_on_minute": 450, "hvac_off_minute": 1290,
+         "warmup_minutes_p90": 60, "dock_heat_on_minute": 0, "dock_heat_off_minute": 0,
+         "dock_heat_kw": 0.0, "setpoint_f": 70, "source_system": "test_bms", "schema_version": "1.0.0"},
+    ])
+    validate_and_load(engine, hvac, "hvac_schedule")
+    # Day-1 meter for S001: flat 30 kWh/h while the BMS runs (05–22), 0.3 standby otherwise.
+    day0 = hours[0].replace(hour=0)
+    readings = pd.DataFrame([
+        {"store_id": "S001", "ts_utc": day0 + timedelta(hours=h),
+         "hvac_kwh": 30.0 if 5 <= h < 22 else 0.3,
+         "total_kwh": (30.0 if 5 <= h < 22 else 0.3) + 10.0,
+         "outdoor_temp_f": 40.0, "source_system": "test_bms", "schema_version": "1.0.0"}
+        for h in range(24)
+    ])
+    readings["ts_utc"] = pd.to_datetime(readings["ts_utc"], utc=True)
+    validate_and_load(engine, readings, "energy_reading")
+
     seed_rates(engine)
 
 

@@ -134,6 +134,7 @@
 <symbol id="i-store" viewBox="0 0 24 24"><path d="M3 9l1-5h16l1 5"/><path d="M4 9v11h16V9"/><path d="M9 14h6"/></symbol>
 <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></symbol>
 <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+<symbol id="i-bolt" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></symbol>
 <symbol id="i-truck" viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></symbol>
 <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></symbol>
 <symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
@@ -186,6 +187,7 @@
     <a href="anomaly.html" class="nav-link"><svg class="ico"><use href="#i-search"/></svg>Investigate</a>
     <a href="workforce.html" class="nav-link"><svg class="ico"><use href="#i-users"/></svg>Workforce</a>
     <a href="inbound.html" class="nav-link"><svg class="ico"><use href="#i-truck"/></svg>Inbound</a>
+    <a href="energy.html" class="nav-link"><svg class="ico"><use href="#i-bolt"/></svg>Energy</a>
     <a href="briefing.html" class="nav-link"><svg class="ico"><use href="#i-sun"/></svg>Briefing</a>
   </div>
   <div class="nav-user">
@@ -198,10 +200,10 @@
 <div class="wrap">
   <div class="demo-head">
     <div class="page-eyebrow">v0.1 · Stakeholder walkthrough</div>
-    <h1>Six screens. One missed-target Tuesday at <em>Store #042</em>.</h1>
+    <h1>Seven screens. One missed-target Tuesday at <em>Store #042</em>.</h1>
     <p class="lead">
       Each screen below is a self-contained example of a problem StorePulse-AI is built to solve.
-      They follow one story — a regional manager investigating why Chicago's flagship store slipped on Nov 3, then planning the week's labor around the trucks the TMS says are coming — so stakeholders can trace a signal from region, to store, to root cause, to approved action.
+      They follow one story — a regional manager investigating why Chicago's flagship store slipped on Nov 3, then planning the week's labor around the trucks the TMS says are coming and the hours the building is heated while empty — so stakeholders can trace a signal from region, to store, to root cause, to approved action.
     </p>
     <div style="margin-top: 32px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
       <a href="tour.html" style="display: inline-flex; align-items: center; gap: 10px; padding: 12px 22px; background: var(--accent); color: #fff; text-decoration: none; font-family: var(--f-body); font-weight: 500; font-size: 14px; border-radius: var(--r-pill); transition: all 0.15s; box-shadow: var(--shadow-sm);">
@@ -298,6 +300,13 @@
       <div class="solves">Solves · TMS disconnected from labor planning</div>
       <p>The Transport Management System's 5-day truck outlook joined to the labor plan, day by day. A slipped truck becomes an idle-risk flag and a reviewable re-sequencing recommendation — before the crew clocks in.</p>
       <div class="cta">Open inbound view</div>
+    </a>
+    <a href="energy.html" class="screen-card">
+      <div class="no"><span>Screen 07 · new</span><span class="card-icon"><svg class="ico"><use href="#i-bolt"/></svg></span></div>
+      <h3>Energy (forecast-driven HVAC)</h3>
+      <div class="solves">Solves · Heating and cooling an empty store</div>
+      <p>The building's HVAC timetable checked hour by hour against the visitor forecast, the meter and the TMS truck schedule. Three hours a day of conditioning an empty store become a priced, reviewable schedule change: about $6.6K a year per store.</p>
+      <div class="cta">Open energy view</div>
     </a>
     <a href="../architecture.html" class="screen-card">
       <div class="no"><span>Context</span><span class="card-icon"><svg class="ico"><use href="#i-cpu"/></svg></span></div>

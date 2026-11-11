@@ -96,6 +96,53 @@ INBOUND_SHIPMENT_SCHEMA = DataFrameSchema(
 )
 
 
+MINUTES_PER_DAY = 24 * 60
+
+
+HVAC_SCHEDULE_SCHEMA = DataFrameSchema(
+    {
+        "store_id": Column(str, Check.str_matches(r"^S\d{3}$"), unique=True),
+        "bms_id": Column(str, Check.str_matches(r"^BMS-[A-Z0-9]+$")),
+        "hvac_on_minute": Column(int, Check.in_range(0, MINUTES_PER_DAY)),
+        "hvac_off_minute": Column(int, Check.in_range(0, MINUTES_PER_DAY)),
+        "warmup_minutes_p90": Column(int, Check.in_range(0, 360)),   # > 6 h to setpoint is a BMS fault
+        "dock_heat_on_minute": Column(int, Check.in_range(0, MINUTES_PER_DAY)),
+        "dock_heat_off_minute": Column(int, Check.in_range(0, MINUTES_PER_DAY)),
+        "dock_heat_kw": Column(float, Check.in_range(0, 200)),
+        "setpoint_f": Column(int, Check.in_range(55, 85)),
+        "source_system": Column(str),
+        "schema_version": Column(str),
+    },
+    strict=True,
+    coerce=True,
+    checks=[
+        Check(lambda df: df["hvac_on_minute"] < df["hvac_off_minute"],
+              error="hvac_on_minute must be before hvac_off_minute (same-day schedule)"),
+        Check(lambda df: df["dock_heat_on_minute"] <= df["dock_heat_off_minute"],
+              error="dock heat window must not be reversed"),
+    ],
+)
+
+
+ENERGY_READING_SCHEMA = DataFrameSchema(
+    {
+        "store_id": Column(str, Check.str_matches(r"^S\d{3}$")),
+        "ts_utc": Column("datetime64[ns, UTC]"),
+        "hvac_kwh": Column(float, Check.in_range(0, 2000)),
+        "total_kwh": Column(float, Check.in_range(0, 5000)),
+        "outdoor_temp_f": Column(float, Check.in_range(-60, 130)),
+        "source_system": Column(str),
+        "schema_version": Column(str),
+    },
+    strict=True,
+    coerce=True,
+    checks=[
+        Check(lambda df: df["hvac_kwh"] <= df["total_kwh"] + 1e-6,
+              error="hvac_kwh cannot exceed total_kwh"),
+    ],
+)
+
+
 STORE_SCHEMA = DataFrameSchema(
     {
         "store_id": Column(str, Check.str_matches(r"^S\d{3}$"), unique=True),

@@ -1,0 +1,174 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>StorePulse-AI · Energy (HVAC)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="mast">
+    <div class="brand">
+      <div class="mark"></div>
+      <div>
+        <div class="brand-name">StorePulse<em>·</em>AI</div>
+        <div class="brand-sub">Energy · forecast-driven HVAC</div>
+      </div>
+    </div>
+    <div class="mast-right">
+      <span class="tag warn">synthetic data</span>
+      <span class="tag">BMS · read-only</span>
+      <nav class="nav">
+        <a href="/">Regional</a>
+        <a href="/inbound.html">Inbound</a>
+        <a href="/energy.html" class="active">Energy</a>
+        <a href="/investigation.html">Investigation</a>
+        <a href="/approvals.html">Approvals</a>
+      </nav>
+    </div>
+  </header>
+
+  <div class="controls">
+    <label>Token
+      <select id="token">
+        <option value="demo-admin">demo-admin (platform_admin)</option>
+        <option value="demo-regional-west">demo-regional-west (West only)</option>
+        <option value="demo-store-s001">demo-store-s001 (S001 only)</option>
+        <option value="demo-reviewer">demo-reviewer</option>
+      </select>
+    </label>
+    <label>Store
+      <select id="store"></select>
+    </label>
+    <label>As of (UTC day)
+      <input id="asof" type="date">
+    </label>
+    <label>Horizon (days, max 5)
+      <input id="horizon" type="number" min="1" max="5" value="5" style="min-width:90px">
+    </label>
+    <button id="run">Refresh</button>
+    <button id="plan" class="secondary">Plan energy with AI</button>
+  </div>
+
+  <div class="tile-grid" id="tiles"></div>
+
+  <section class="evidence">
+    <h2>HVAC schedule vs store activity <span class="chip" id="sched_chip">—</span><span class="chip" id="sum_chip">—</span></h2>
+    <div style="color: var(--muted); font-size: 13px; margin-bottom: 12px;">
+      Each day joins the building-management system (BMS) HVAC timetable to the hours the visitor forecast says the store is occupied,
+      the metered HVAC load, and the TMS trucks due for the dock.
+      <b>waste</b> = the store is heated or cooled while empty (≥ 10 kWh avoidable).
+      <b>comfort risk</b> = the BMS starts too late to reach setpoint before opening.
+      Deterministic check · lineage below · nothing is written to the building system.
+    </div>
+    <div class="day-board" id="board"></div>
+  </section>
+
+  <section class="evidence">
+    <h2>Where the hours go</h2>
+    <table id="tbl"><thead><tr>
+      <th>Day</th><th>Finding</th><th>Window</th><th>Minutes</th><th>kWh</th><th>Evidence</th>
+    </tr></thead><tbody></tbody></table>
+  </section>
+
+  <section class="evidence" id="plan-out" style="display:none">
+    <h2>Energy Analyst → Operations Advisor <span class="chip warn">human review required</span></h2>
+    <div id="plan-summary" style="font-size: 14px; margin-bottom: 10px;"></div>
+    <pre id="plan-pre">—</pre>
+    <div style="margin-top:12px"><a href="/approvals.html">Review queue →</a></div>
+  </section>
+
+  <section class="lineage-block">
+    <h3>Lineage · energy_hvac_schedule_check</h3>
+    <pre id="lineage">—</pre>
+  </section>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+function headers(){return {"authorization": "Bearer " + $("token").value, "accept": "application/json"}}
+async function api(path, opts){const r = await fetch(path, Object.assign({headers: headers()}, opts||{})); return [r, await r.json()]}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]))}
+
+async function loadStores(){
+  const [r, body] = await api("/api/v1/stores");
+  const sel = $("store"); sel.innerHTML = "";
+  if (!r.ok) {const o=document.createElement("option");o.textContent="(not authorized)";sel.appendChild(o);return}
+  body.forEach(s=>{const o=document.createElement("option");o.value=s.store_id;o.textContent=`${s.store_id} · ${s.name} (${s.region})`;sel.appendChild(o)});
+}
+// Default: inside the published visitor forecast of the synthetic fixture (seed 42).
+function setDefault(){ $("asof").value = "2026-10-14"; }
+const LABEL = {waste:"waste", comfort_risk:"comfort risk", aligned:"aligned", insufficient_evidence:"insufficient evidence"};
+const KIND = {early_start:"early start", late_stop:"late stop", dock_heat_no_truck:"dock heat, no truck", comfort_risk:"comfort risk"};
+function money(v){return "$" + Number(v||0).toLocaleString(undefined,{maximumFractionDigits:2})}
+
+function renderTiles(c){
+  const s = c.summary;
+  const tiles = [
+    ["Avoidable energy", `${Math.round(s.avoidable_kwh)}`, `kWh · next ${s.days_checked} days`],
+    ["Cost at stake", money(s.avoidable_usd), `@ $${c.lineage.tariff_usd_per_kwh}/kWh · before demand charges`],
+    ["Annualized (schedule only)", money(s.annualized_usd), `${s.annualized_mwh} MWh · ${s.annualized_co2_t} t CO₂ / year`],
+    ["Recommended schedule", s.recommended_schedule ? `${s.recommended_schedule.hvac_on}–${s.recommended_schedule.hvac_off}` : "—",
+      s.current_schedule ? `today ${s.current_schedule.hvac_on}–${s.current_schedule.hvac_off}` : "no BMS schedule"],
+  ];
+  $("tiles").innerHTML = tiles.map(t=>`<div class="tile"><div class="k-name">${t[0]}</div><div class="k-value">${esc(t[1])}</div><div class="k-unit">${esc(t[2])}</div></div>`).join("");
+}
+function renderBoard(c){
+  const s = c.summary, bs = s.by_status;
+  $("sched_chip").textContent = s.current_schedule ? `BMS ${s.current_schedule.hvac_on}–${s.current_schedule.hvac_off} · warm-up ${s.current_schedule.warmup_minutes_p90} min` : "no BMS schedule";
+  $("sum_chip").textContent = `${bs.waste} waste · ${bs.comfort_risk} comfort risk · ${bs.aligned} aligned`;
+  $("sum_chip").className = "chip " + (bs.waste||bs.comfort_risk ? "warn" : "ok");
+  $("board").innerHTML = c.days.map(d=>`
+    <div class="day ${d.status}">
+      <div class="day-date">${d.date}</div>
+      <div class="day-status">${LABEL[d.status]}</div>
+      ${d.reason?`<div class="day-row"><span>${esc(d.reason)}</span></div>`:`
+      <div class="day-row"><span>occupied</span><b>${d.first_occupied}–${d.last_occupied}</b></div>
+      <div class="day-row"><span>BMS runs</span><b>${d.hvac_on}–${d.hvac_off}</b></div>
+      <div class="day-row save"><span>recommended</span><b>${d.recommended_on}–${d.recommended_off}</b></div>
+      <div class="day-row"><span>trucks due</span><b>${d.trucks_due}</b></div>
+      <div class="day-row ${d.avoidable_kwh?"risk":""}"><span>avoidable</span><b>${d.avoidable_kwh} kWh · ${money(d.avoidable_usd)}</b></div>
+      <div class="day-row"><span>sources</span><b>${d.occupancy_source} · ${d.meter_source}</b></div>`}
+    </div>`).join("");
+  const rows = [];
+  c.days.forEach(d=>d.findings.forEach(f=>rows.push(`<tr><td>${d.date}</td><td><span class="status ${f.kind==="comfort_risk"?"delayed":"cancelled"}">${KIND[f.kind]||f.kind}</span></td>
+    <td>${esc(f.window)}</td><td>${f.minutes}</td><td>${f.kwh}</td><td>${esc(f.evidence)}</td></tr>`)));
+  $("tbl").querySelector("tbody").innerHTML = rows.join("") || '<tr><td colspan="6">No avoidable HVAC hours in window.</td></tr>';
+  $("lineage").textContent = JSON.stringify({window: c.window, summary: c.summary, lineage: c.lineage}, null, 2);
+}
+async function refresh(){
+  const sid=$("store").value; const asof=$("asof").value+"T00:00:00Z"; const h=$("horizon").value;
+  const [r, c] = await api(`/api/v1/stores/${sid}/energy/hvac-check?as_of=${asof}&horizon_days=${h}`);
+  if (!r.ok){$("tiles").innerHTML="";$("board").innerHTML=`<div class="day insufficient_evidence">error ${r.status}: ${esc(c.detail||c.message||"")}</div>`;$("lineage").textContent=JSON.stringify(c,null,2);return}
+  renderTiles(c); renderBoard(c);
+}
+async function plan(){
+  const sid=$("store").value; const asof=$("asof").value+"T00:00:00Z"; const h=$("horizon").value;
+  $("plan-out").style.display=""; $("plan-pre").textContent="running energy_analyst → store_performance → operations_advisor …";
+  const [r, body] = await api(`/api/v1/agents/plan-store-energy?store_id=${sid}&as_of=${asof}&horizon_days=${h}`, {method:"POST"});
+  if (!r.ok || body.status!=="ok"){$("plan-pre").textContent=JSON.stringify(body,null,2);return}
+  const rec = body.output.advisor.recommendation;
+  const f = body.output.energy_analyst.findings;
+  const guard = (rec.evidence.energy_summary||{}).comfort_guard||{};
+  $("plan-summary").innerHTML = `<b>${esc(rec.title)}</b><br><span style="color:var(--muted)">${esc(rec.rationale)}</span><br>
+    <span class="chip">run ${body.run_id.slice(0,8)}</span><span class="chip">${body.step_count} tool calls</span>
+    <span class="chip">${f.length} energy finding(s)</span><span class="chip ${guard.passed?"ok":"warn"}">comfort guard ${guard.passed?"passed":"not applicable"}</span>
+    <span class="chip">confidence ${rec.confidence}</span><span class="chip warn">${rec.status}</span>`;
+  $("plan-pre").textContent = JSON.stringify({findings: f, recommendation: rec}, null, 2);
+}
+// Deep links: /energy.html?store=S003&asof=2026-10-14&horizon=5&plan=1
+(async()=>{
+  setDefault(); await loadStores();
+  const q = new URLSearchParams(window.location.search);
+  if (q.get("store") && [...$("store").options].some(o=>o.value===q.get("store"))) $("store").value=q.get("store");
+  if (q.get("asof")) $("asof").value=q.get("asof");
+  if (q.get("horizon")) $("horizon").value=q.get("horizon");
+  $("run").onclick=refresh; $("plan").onclick=plan;
+  $("token").onchange=async()=>{await loadStores(); refresh()}; $("store").onchange=refresh;
+  await refresh();
+  if (q.get("plan")==="1") await plan();
+})();
+</script>
+</body>
+</html>

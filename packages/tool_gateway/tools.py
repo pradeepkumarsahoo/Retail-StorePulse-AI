@@ -33,8 +33,10 @@ from packages.analytics.kpi_service import (
 )
 from packages.anomaly_detection.detector import get_anomaly, list_anomalies
 from packages.domain.entities import KpiWindow
+from packages.energy_planning.service import ENERGY_MAX_HORIZON_DAYS, hvac_schedule_check
 from packages.forecasting.service import get_forecast
 from packages.inbound_planning.service import labor_plan_check
+from services.bms_mcp.server import BmsMcp
 from services.labor_rate_mcp.server import LaborRateMcp
 from services.tms_mcp.server import TMS_MAX_HORIZON_DAYS, TmsMcp
 
@@ -126,6 +128,17 @@ class InboundPlanArgs(BaseModel):
     store_id: str = Field(pattern=r"^S\d{3}$")
     as_of_utc: datetime
     horizon_days: int = Field(default=TMS_MAX_HORIZON_DAYS, ge=1, le=TMS_MAX_HORIZON_DAYS)
+
+
+class BmsScheduleArgs(BaseModel):
+    store_id: str = Field(pattern=r"^S\d{3}$")
+
+
+class EnergyCheckArgs(BaseModel):
+    """HVAC schedule vs store activity. Same 5-day horizon as the TMS (ADR-0015)."""
+    store_id: str = Field(pattern=r"^S\d{3}$")
+    as_of_utc: datetime
+    horizon_days: int = Field(default=ENERGY_MAX_HORIZON_DAYS, ge=1, le=ENERGY_MAX_HORIZON_DAYS)
 
 
 # --- Tool implementations --------------------------------------------------
@@ -296,6 +309,18 @@ def tool_inbound_labor_plan_check(ctx: Context, args: InboundPlanArgs) -> dict:
     return labor_plan_check(ctx.engine, args.store_id, args.as_of_utc, args.horizon_days)
 
 
+def tool_bms_hvac_schedule_get(ctx: Context, args: BmsScheduleArgs) -> dict:
+    """The HVAC timetable the store's BMS runs today, via the read-only BMS adapter."""
+    _scope_check(ctx, args.store_id)
+    return BmsMcp(ctx.engine).call_tool("get_hvac_schedule", {"store_id": args.store_id})
+
+
+def tool_energy_hvac_schedule_check(ctx: Context, args: EnergyCheckArgs) -> dict:
+    """Deterministic hour-by-hour join of BMS schedule, meter, visitor forecast and trucks."""
+    _scope_check(ctx, args.store_id)
+    return hvac_schedule_check(ctx.engine, args.store_id, args.as_of_utc, args.horizon_days)
+
+
 # --- Allowlist ------------------------------------------------------------
 
 @dataclass(frozen=True)
@@ -324,6 +349,9 @@ TOOLS: dict[str, ToolSpec] = {
     "tms.shipments.list":   ToolSpec("tms.shipments.list",   "Inbound DC trucks for one store, up to 5 days ahead (TMS MCP adapter).", TmsShipmentsArgs, tool_tms_shipments_list),
     "tms.shipment.get":     ToolSpec("tms.shipment.get",     "One inbound shipment record by id (TMS MCP adapter).",                   TmsShipmentArgs,  tool_tms_shipment_get),
     "inbound.labor_plan_check": ToolSpec("inbound.labor_plan_check", "Per-day join of TMS trucks to the labor plan: idle risk / under-coverage.", InboundPlanArgs, tool_inbound_labor_plan_check),
+    # Energy (BMS) integration — read-only, same 5-day horizon.
+    "bms.hvac_schedule.get": ToolSpec("bms.hvac_schedule.get", "The store's current HVAC timetable (BMS MCP adapter).", BmsScheduleArgs, tool_bms_hvac_schedule_get),
+    "energy.hvac_schedule_check": ToolSpec("energy.hvac_schedule_check", "Per-day join of the HVAC timetable to occupied hours, meter kWh and trucks: avoidable energy.", EnergyCheckArgs, tool_energy_hvac_schedule_check),
 }
 
 
@@ -336,5 +364,8 @@ AGENT_ALLOWLISTS: dict[str, frozenset[str]] = {
     "briefing":            frozenset({"kpi.splh", "kpi.net_sales", "kpi.transactions", "kpi.atv", "kpi.conversion_rate", "anomaly.list", "forecast.labor"}),
     # Inbound Logistics Planner: the only agent that may read raw TMS shipment records.
     "inbound_logistics":   frozenset({"tms.shipments.list", "tms.shipment.get", "inbound.labor_plan_check", "forecast.labor", "stores.list"}),
+    # Energy Analyst: the only agent that may read the BMS. Truck status reaches it
+    # through the energy check's lineage, not raw TMS records.
+    "energy_analyst":      frozenset({"bms.hvac_schedule.get", "energy.hvac_schedule_check", "kpi.visitors", "stores.list"}),
     # Supervisor itself does not call tools; it dispatches.
 }

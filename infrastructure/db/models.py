@@ -139,6 +139,46 @@ class InboundShipment(Base):
     )
 
 
+class HvacSchedule(Base):
+    """HVAC timetable synced from the store's building-management system (BMS).
+
+    One row per store. Read-only inside StorePulse: the BMS is the system of
+    record and is never written to. Times are minutes after midnight in the
+    same UTC-equivalent convention as the fact tables. ``warmup_minutes_p90``
+    is the BMS-measured time to reach setpoint (ADR-0015).
+    """
+    __tablename__ = "hvac_schedule"
+    store_id: Mapped[str] = mapped_column(String(8), ForeignKey("store.store_id"), primary_key=True)
+    bms_id: Mapped[str] = mapped_column(String(16), nullable=False)
+    hvac_on_minute: Mapped[int] = mapped_column(Integer, nullable=False)
+    hvac_off_minute: Mapped[int] = mapped_column(Integer, nullable=False)
+    warmup_minutes_p90: Mapped[int] = mapped_column(Integer, nullable=False)
+    dock_heat_on_minute: Mapped[int] = mapped_column(Integer, nullable=False)
+    dock_heat_off_minute: Mapped[int] = mapped_column(Integer, nullable=False)
+    dock_heat_kw: Mapped[float] = mapped_column(Float, nullable=False)
+    setpoint_f: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_system: Mapped[str] = mapped_column(String(32), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(16), nullable=False)
+
+
+class EnergyReading(Base):
+    """Hourly energy-meter reading per store (BMS / utility meter mirror)."""
+    __tablename__ = "energy_reading"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    store_id: Mapped[str] = mapped_column(String(8), ForeignKey("store.store_id"), nullable=False)
+    ts_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    hvac_kwh: Mapped[float] = mapped_column(Float, nullable=False)
+    total_kwh: Mapped[float] = mapped_column(Float, nullable=False)
+    outdoor_temp_f: Mapped[float] = mapped_column(Float, nullable=False)
+    source_system: Mapped[str] = mapped_column(String(32), nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(16), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("store_id", "ts_utc", name="uq_energy_store_ts"),
+        Index("ix_energy_store_ts", "store_id", "ts_utc"),
+    )
+
+
 # --- Governance: data quality & quarantine --------------------------------
 
 class Quarantine(Base):
@@ -172,7 +212,7 @@ class Forecast(Base):
     run_id: Mapped[str] = mapped_column(String(36), ForeignKey("forecast_run.run_id"), nullable=False)
     store_id: Mapped[str] = mapped_column(String(8), ForeignKey("store.store_id"), nullable=False)
     ts_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    kind: Mapped[str] = mapped_column(String(32), nullable=False)  # "labor_minutes" | "net_sales_cents"
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)  # "labor_minutes" | "net_sales_cents" | "visitors"
     predicted: Mapped[float] = mapped_column(Float, nullable=False)
     lower_80: Mapped[float] = mapped_column(Float, nullable=True)
     upper_80: Mapped[float] = mapped_column(Float, nullable=True)

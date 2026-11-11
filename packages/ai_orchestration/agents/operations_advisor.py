@@ -9,6 +9,10 @@ recommendation. Policy-bound:
   * Inbound (TMS) evidence is evaluated first: a slipped truck or a heavy
     inbound day is a concrete, dated planning fact, so it outranks the
     softer sales-trend heuristics.
+  * Energy (BMS) evidence is only considered in the energy workflow. The
+    recommended HVAC schedule must pass a comfort guard: the store reaches
+    setpoint before opening on every checked day. The advisor never writes
+    to the building system; facilities apply an approved change.
 """
 from __future__ import annotations
 
@@ -20,7 +24,7 @@ from packages.tool_gateway.tools import Context
 
 
 AGENT_NAME = "operations_advisor"
-PROMPT_VERSION = "1.1.0"
+PROMPT_VERSION = "1.2.0"
 
 
 FORBIDDEN_TERMS = ("cut ", "reduce hours", "fire ", "terminate ", "layoff", "lay-off",
@@ -55,9 +59,71 @@ def _inbound_findings(workforce: dict, inbound: dict | None) -> list[dict]:
     return out
 
 
+def _hhmm(v: str) -> int:
+    h, m = v.split(":")
+    return int(h) * 60 + int(m)
+
+
+def _comfort_guard(energy: dict) -> dict:
+    """Recommended start + measured warm-up must reach setpoint before comfort-ready on every day."""
+    check = energy.get("check") or {}
+    rec = (check.get("summary") or {}).get("recommended_schedule") or {}
+    cur = (check.get("summary") or {}).get("current_schedule") or {}
+    if not rec or not cur:
+        return {"passed": False, "reason": "no recommended schedule"}
+    warm = int(cur.get("warmup_minutes_p90") or 0)
+    lead = int(((check.get("lineage") or {}).get("thresholds") or {}).get("comfort_lead_minutes", 15))
+    ready_at = _hhmm(rec["hvac_on"]) + warm
+    for d in check.get("days", []):
+        if d.get("first_occupied") and ready_at > _hhmm(d["first_occupied"]) - lead:
+            return {"passed": False, "reason": f"setpoint not reached before opening on {d['date']}"}
+    return {"passed": True, "setpoint_ready_at": f"{ready_at // 60:02d}:{ready_at % 60:02d}"}
+
+
+def _energy_recommendation(energy: dict) -> tuple[str, str, str, str, str] | None:
+    """(title, rationale, direction, confidence, risk) for the energy workflow, or None."""
+    check = energy.get("check") or {}
+    s = check.get("summary") or {}
+    days = [d for d in check.get("days", []) if d.get("status") in ("waste", "comfort_risk")]
+    if not days:
+        return None
+    cur, rec = s.get("current_schedule") or {}, s.get("recommended_schedule") or {}
+    guard = _comfort_guard(energy)
+    if any(d["status"] == "waste" for d in days) and guard["passed"]:
+        dock_days = [d["date"] for d in days if d.get("dock_heat_kwh")]
+        dock_txt = (f" Skip dock heating on days the TMS shows no truck ({', '.join(dock_days)})."
+                    if dock_days else "")
+        title = "Align the store's HVAC schedule with store activity"
+        rationale = (
+            f"The BMS runs HVAC {cur.get('hvac_on')}-{cur.get('hvac_off')}, but the visitor forecast and "
+            f"meter show the store is empty outside opening hours. Starting at {rec.get('hvac_on')} still "
+            f"reaches setpoint by {guard['setpoint_ready_at']} (measured warm-up {cur.get('warmup_minutes_p90')} min), "
+            f"and stopping at {rec.get('hvac_off')} covers closing tasks.{dock_txt} "
+            f"About {s.get('avoidable_kwh', 0):.0f} kWh (${s.get('avoidable_usd', 0):.2f}) over the next "
+            f"{s.get('days_checked')} days, ~${s.get('annualized_usd', 0):,.0f} a year from the schedule alone, "
+            "with comfort at opening unchanged. Facilities apply the change in the BMS after review."
+        )
+        meter_ok = all(d.get("meter_source") == "meter" for d in days)
+        return (title, rationale, "down", "high" if meter_ok else "medium",
+                "Unusually hot or cold mornings can need a longer warm-up; facilities should keep an "
+                "earlier start on those days and re-check the BMS warm-up figure after one week.")
+    comfort = [d for d in days if d["status"] == "comfort_risk"]
+    if comfort:
+        worst = max(comfort, key=lambda d: d.get("comfort_risk_minutes", 0))
+        return (
+            "Start HVAC earlier so the store is comfortable at opening",
+            (f"The BMS starts HVAC at {cur.get('hvac_on')}, but the store needs "
+             f"{cur.get('warmup_minutes_p90')} min to reach setpoint before the first visitors at "
+             f"{worst.get('first_occupied')}. Recommend starting at {worst.get('recommended_on')} on the "
+             f"affected days ({', '.join(d['date'] for d in comfort)})."),
+            "up", "medium", "Slightly higher energy use; comfort and food-safety limits take priority.",
+        )
+    return None
+
+
 def run(ctx: Context, run_id: str, store_perf: dict, workforce: dict,
         investigations: list[dict] | None = None, start_seq: int = 0,
-        inbound: dict | None = None) -> dict:
+        inbound: dict | None = None, energy: dict | None = None) -> dict:
     """Synthesize a recommendation. Draft only — human must review."""
     store_id = store_perf["store_id"]
     kpis = store_perf.get("kpis", {})
@@ -78,7 +144,11 @@ def run(ctx: Context, run_id: str, store_perf: dict, workforce: dict,
     confidence: str
     risk: str
 
-    if idle_days:
+    energy_rec = _energy_recommendation(energy) if energy else None
+
+    if energy_rec:
+        title, rationale, direction, confidence, risk = energy_rec
+    elif idle_days:
         # TMS says the truck will not land when the labor plan expects it.
         dates = ", ".join(f["date"] for f in idle_days)
         idle_minutes = sum(int(f.get("idle_minutes_at_risk") or 0) for f in idle_days)
@@ -168,6 +238,19 @@ def run(ctx: Context, run_id: str, store_perf: dict, workforce: dict,
         },
         "investigations": [i.get("hypotheses", []) for i in (investigations or [])],
     }
+    if energy:
+        es = (energy.get("check") or {}).get("summary") or {}
+        evidence["energy_summary"] = {
+            "source": "energy_analyst",
+            "findings": energy.get("findings", []),
+            "current_schedule": es.get("current_schedule"),
+            "recommended_schedule": es.get("recommended_schedule"),
+            "avoidable_kwh": es.get("avoidable_kwh"),
+            "avoidable_usd": es.get("avoidable_usd"),
+            "annualized_usd": es.get("annualized_usd"),
+            "comfort_guard": _comfort_guard(energy),
+            "bms_server": ((energy.get("check") or {}).get("lineage") or {}).get("bms_server"),
+        }
     return {
         "agent": AGENT_NAME,
         "prompt_version": PROMPT_VERSION,

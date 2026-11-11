@@ -2,7 +2,9 @@
 
 Writes labeled synthetic CSVs for 5 stores × 90 days × hourly open-period rows
 for sales, labor, and traffic, plus a synthetic TMS (Transport Management
-System) inbound-shipment feed covering the same period and a 5-day lookahead.
+System) inbound-shipment feed covering the same period and a 5-day lookahead,
+plus a synthetic building-management (BMS) feed: one HVAC schedule per store
+and hourly energy-meter readings (24 h a day) with outdoor temperature.
 Fixed seed → byte-identical output across runs.
 
 Usage:
@@ -68,6 +70,33 @@ STORE_DELIVERY_DOWS = {
 }
 STORE_DC = {"S001": "DC01", "S002": "DC01", "S003": "DC02", "S004": "DC03", "S005": "DC04"}
 CARRIERS = ("NorthStar Freight", "Lakeside Logistics", "Blue Ridge Carriers")
+
+# --- BMS (building management system) synthetic feed ------------------------
+# The HVAC timetable each store's BMS runs today. It was set when the store
+# opened and does not follow traffic — that mismatch is what the energy check
+# finds. Times are minutes after midnight (UTC-equivalent, same convention as
+# OPEN_HOUR/CLOSE_HOUR). warmup_minutes_p90 is the BMS-measured time to reach
+# setpoint (90th percentile, last 14 days) — like unload_minutes_est for TMS.
+HVAC_SCHEDULES = {
+    #        on     off   warmup  dock_on dock_off dock_kw setpoint
+    "S001": (360,  1290,  90,     390,    540,     10.0,   70),   # 06:00–21:30
+    "S002": (450,  1290,  60,     390,    540,      6.0,   70),   # 07:30–21:30 (close to aligned)
+    "S003": (300,  1320,  75,     390,    540,      8.0,   72),   # 05:00–22:00 (the Chicago story)
+    "S004": (330,  1380,  60,     390,    540,      8.0,   72),   # 05:30–23:00
+    "S005": (390,  1320,  45,     390,    540,      5.0,   70),   # 06:30–22:00
+}
+# Climate: outdoor daily mean °F at the start → end of the generated period.
+STORE_CLIMATE_F = {"S001": (64.0, 60.0), "S002": (64.0, 60.0), "S003": (78.0, 46.0),
+                   "S004": (86.0, 64.0), "S005": (78.0, 50.0)}
+# HVAC size: (fan/base kW while running, kW per °F outside the comfort band).
+STORE_HVAC_SIZE = {"S001": (12.0, 1.6), "S002": (6.0, 0.8), "S003": (10.0, 1.4),
+                   "S004": (8.0, 1.1), "S005": (5.0, 0.7)}
+STORE_BASE_KW = {"S001": (30.0, 7.0), "S002": (16.0, 4.0), "S003": (26.0, 6.0),
+                 "S004": (22.0, 5.0), "S005": (14.0, 3.0)}   # (open hours, closed hours)
+HEAT_BELOW_F = 62.0
+COOL_ABOVE_F = 72.0
+WARMUP_SURGE = 1.4        # extra draw while pulling the store to setpoint
+HVAC_STANDBY_KW = 0.3
 
 
 def _hourly_traffic_multiplier(hour: int) -> float:
@@ -152,6 +181,8 @@ def generate(seed: int, start_date: datetime, days: int) -> dict[str, pd.DataFra
     # TMS feed is drawn AFTER the fact tables so sales/labor/traffic output
     # stays byte-identical to earlier synthetic versions under the same seed.
     shipment_rows = _generate_inbound_shipments(rng, start_date, days + TMS_LOOKAHEAD_DAYS)
+    # BMS feed is drawn after the TMS feed for the same reason.
+    energy_rows = _generate_energy_readings(rng, start_date, days)
 
     stores_df = pd.DataFrame(STORES)
     return {
@@ -160,7 +191,80 @@ def generate(seed: int, start_date: datetime, days: int) -> dict[str, pd.DataFra
         "labor_hours": pd.DataFrame(labor_rows),
         "traffic_count": pd.DataFrame(traffic_rows),
         "inbound_shipment": pd.DataFrame(shipment_rows),
+        "hvac_schedule": pd.DataFrame(_hvac_schedule_rows()),
+        "energy_reading": pd.DataFrame(energy_rows),
     }
+
+
+def _hvac_schedule_rows() -> list[dict]:
+    """Synthetic BMS export: the HVAC timetable configured in each store today."""
+    rows = []
+    for store in STORES:
+        sid = store["store_id"]
+        on, off, warm, d_on, d_off, d_kw, sp = HVAC_SCHEDULES[sid]
+        rows.append({
+            "store_id": sid,
+            "bms_id": f"BMS-{sid}",
+            "hvac_on_minute": on,
+            "hvac_off_minute": off,
+            "warmup_minutes_p90": warm,
+            "dock_heat_on_minute": d_on,
+            "dock_heat_off_minute": d_off,
+            "dock_heat_kw": d_kw,
+            "setpoint_f": sp,
+            "source_system": "synthetic_bms",
+            "schema_version": SCHEMA_VERSION,
+        })
+    return rows
+
+
+def _overlap_minutes(a0: int, a1: int, b0: int, b1: int) -> int:
+    return max(0, min(a1, b1) - max(a0, b0))
+
+
+def _generate_energy_readings(rng: np.random.Generator, start_date: datetime,
+                              days: int) -> list[dict]:
+    """Synthetic hourly meter export: HVAC kWh, total kWh, outdoor temperature.
+
+    The BMS runs its fixed timetable every day, whatever the traffic or the
+    trucks — so the meter records HVAC load in empty hours, exactly as a real
+    store on a static schedule does.
+    """
+    rows: list[dict] = []
+    for day_idx in range(days):
+        day = start_date + timedelta(days=day_idx)
+        frac = day_idx / max(days - 1, 1)
+        for store in STORES:
+            sid = store["store_id"]
+            on, off, warm, d_on, d_off, d_kw, _sp = HVAC_SCHEDULES[sid]
+            t0, t1 = STORE_CLIMATE_F[sid]
+            day_mean = t0 + (t1 - t0) * frac + rng.normal(0, 3.0)
+            fan_kw, kw_per_deg = STORE_HVAC_SIZE[sid]
+            base_open, base_closed = STORE_BASE_KW[sid]
+            for hour in range(24):
+                h0, h1 = hour * 60, (hour + 1) * 60
+                temp = day_mean + 7.0 * math.cos(2 * math.pi * (hour - 15) / 24) + rng.normal(0, 1.0)
+                gap = max(0.0, HEAT_BELOW_F - temp) + max(0.0, temp - COOL_ABOVE_F)
+                running_kw = fan_kw + kw_per_deg * gap
+                run_min = _overlap_minutes(h0, h1, on, off)
+                surge_min = _overlap_minutes(h0, h1, on, on + warm)
+                hvac_kwh = (running_kw * (run_min - surge_min)
+                            + running_kw * WARMUP_SURGE * surge_min
+                            + HVAC_STANDBY_KW * (60 - run_min)) / 60.0
+                hvac_kwh *= max(0.85, rng.normal(1.0, 0.04))
+                dock_kwh = d_kw * _overlap_minutes(h0, h1, d_on, d_off) / 60.0
+                base_kwh = base_open if OPEN_HOUR <= hour < CLOSE_HOUR else base_closed
+                rows.append({
+                    "store_id": sid,
+                    "ts_utc": day.replace(hour=hour, minute=0, second=0, microsecond=0,
+                                          tzinfo=timezone.utc),
+                    "hvac_kwh": round(hvac_kwh, 2),
+                    "total_kwh": round(hvac_kwh + dock_kwh + base_kwh, 2),
+                    "outdoor_temp_f": round(temp, 1),
+                    "source_system": "synthetic_bms",
+                    "schema_version": SCHEMA_VERSION,
+                })
+    return rows
 
 
 def _generate_inbound_shipments(rng: np.random.Generator, start_date: datetime,

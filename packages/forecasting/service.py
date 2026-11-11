@@ -21,12 +21,21 @@ from packages.forecasting.baseline import (
 )
 
 
+FORECAST_KINDS = ("labor_minutes", "net_sales_cents", "visitors")
+
+
 def _load_hourly(engine: Engine, kind: str, from_utc: datetime, to_utc: datetime) -> pd.DataFrame:
-    assert kind in ("labor_minutes", "net_sales_cents")
+    assert kind in FORECAST_KINDS
     if kind == "labor_minutes":
         sql = text(
             "SELECT store_id, ts_utc, labor_minutes AS val "
             "FROM labor_hours WHERE ts_utc>=:fr AND ts_utc<:to"
+        )
+    elif kind == "visitors":
+        # Footfall forecast: drives the energy (HVAC) check's occupied hours.
+        sql = text(
+            "SELECT store_id, ts_utc, visitors AS val "
+            "FROM traffic_count WHERE ts_utc>=:fr AND ts_utc<:to"
         )
     else:
         sql = text(

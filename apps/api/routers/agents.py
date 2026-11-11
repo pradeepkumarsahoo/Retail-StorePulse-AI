@@ -1,5 +1,5 @@
-"""Agent endpoints: investigate a store, plan inbound labor (TMS), investigate an
-anomaly, generate a briefing.
+"""Agent endpoints: investigate a store, plan inbound labor (TMS), plan store
+energy (BMS), investigate an anomaly, generate a briefing.
 
 Every call creates an AiRun and, where appropriate, a pending-review
 Recommendation. Nothing moves in a source system — recommendations route to
@@ -16,6 +16,7 @@ from apps.api.dependencies import get_api_engine, get_supervisor
 from apps.api.security import Principal, authenticate, ensure_store_access
 from packages.ai_orchestration.supervisor import Supervisor
 from packages.analytics.kpi_service import list_stores
+from packages.energy_planning.service import ENERGY_MAX_HORIZON_DAYS
 from packages.governance.approval_workflow import create_recommendation
 from packages.shared_contracts.api_schemas import AgentRunResponse
 from packages.tool_gateway.tools import Context
@@ -74,6 +75,40 @@ def plan_inbound_labor(
     ctx = Context(engine=engine, principal=p)
     aso = as_of_utc or datetime.now(timezone.utc)
     result = sup.plan_inbound_labor(ctx, store_id, aso, horizon_days=horizon_days)
+    if result.status == "ok" and result.output.get("advisor"):
+        rec = result.output["advisor"]["recommendation"]
+        rec["status"] = "pending_review"
+        create_recommendation(engine, rec, created_by=p.subject, run_id=result.run_id)
+    return AgentRunResponse(
+        run_id=result.run_id, status=result.status, intent=result.intent,
+        output=result.output or None, tokens_used=result.tokens_used,
+        step_count=result.step_count, error=result.error,
+    )
+
+
+@router.post("/plan-store-energy", response_model=AgentRunResponse)
+def plan_store_energy(
+    store_id: str = Query(pattern=r"^S\d{3}$"),
+    as_of_utc: datetime | None = Query(default=None, alias="as_of"),
+    horizon_days: int = Query(default=ENERGY_MAX_HORIZON_DAYS, ge=1, le=ENERGY_MAX_HORIZON_DAYS),
+    engine: Engine = Depends(get_api_engine),
+    p: Principal = Depends(authenticate),
+    sup: Supervisor = Depends(get_supervisor),
+) -> AgentRunResponse:
+    """Forecast-driven HVAC: BMS timetable vs store activity → recommendation.
+
+    The Energy Analyst reads the BMS mirror and the deterministic energy check
+    through the gateway, Store Performance adds footfall and sales context, and
+    the Operations Advisor drafts a comfort-guarded, pending-review
+    recommendation. Nothing is written to the building system.
+    """
+    row = next((s for s in list_stores(engine) if s["store_id"] == store_id), None)
+    if not row:
+        raise HTTPException(status_code=404, detail=f"Unknown store_id: {store_id}")
+    ensure_store_access(p, store_id, row["region"])
+    ctx = Context(engine=engine, principal=p)
+    aso = as_of_utc or datetime.now(timezone.utc)
+    result = sup.plan_store_energy(ctx, store_id, aso, horizon_days=horizon_days)
     if result.status == "ok" and result.output.get("advisor"):
         rec = result.output["advisor"]["recommendation"]
         rec["status"] = "pending_review"

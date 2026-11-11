@@ -161,6 +161,60 @@ class InboundLaborPlanResponse(BaseModel):
     status: Literal["ok", "insufficient_evidence"]
 
 
+class HvacScheduleResponse(BaseModel):
+    """The HVAC timetable a store's BMS runs today (read-only mirror)."""
+    store_id: str
+    bms_id: str
+    hvac_on: str
+    hvac_off: str
+    hvac_on_minute: int
+    hvac_off_minute: int
+    warmup_minutes_p90: int
+    dock_heat_on: str
+    dock_heat_off: str
+    dock_heat_kw: float
+    setpoint_f: int
+    source_system: str
+    schema_version: str
+    synthetic: bool
+    server: dict
+
+
+class EnergyCheckDayResponse(BaseModel):
+    date: str
+    status: Literal["waste", "comfort_risk", "aligned", "insufficient_evidence"]
+    reason: str | None
+    occupancy_source: str | None
+    meter_source: str | None
+    first_occupied: str | None
+    last_occupied: str | None
+    hvac_on: str | None
+    hvac_off: str | None
+    recommended_on: str | None
+    recommended_off: str | None
+    early_start_minutes: int
+    late_stop_minutes: int
+    comfort_risk_minutes: int
+    trucks_due: int
+    trucks_slipped: int
+    dock_heat_needed: bool | None
+    early_start_kwh: float
+    late_stop_kwh: float
+    dock_heat_kwh: float
+    avoidable_kwh: float
+    avoidable_usd: float
+    findings: list[dict]
+
+
+class EnergyCheckResponse(BaseModel):
+    store_id: str
+    window: InboundPlanWindowResponse
+    days: list[EnergyCheckDayResponse]
+    summary: dict
+    lineage: dict
+    status: Literal["ok", "insufficient_evidence"]
+
+
 class AgentRunResponse(BaseModel):
     run_id: str
     status: str

@@ -1,0 +1,283 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Energy · StorePulse-AI</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="styles.css">
+<style>
+  .eval-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--rule); border: 1px solid var(--rule); }
+  .eval-cell { padding: 16px; background: var(--paper-raised); }
+  .eval-cell .lbl { font-family: var(--f-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+  .eval-cell .val { font-family: var(--f-display); font-weight: 500; font-size: 24px; color: var(--ink); letter-spacing: -0.015em; font-variant-numeric: tabular-nums; }
+  .eval-cell .sub { font-family: var(--f-mono); font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .timeline { display: grid; grid-template-columns: 92px 1fr; gap: 0; font-size: 13px; }
+  .timeline .t { font-family: var(--f-mono); font-size: 11px; color: var(--muted); padding: 9px 0; border-bottom: 1px solid var(--rule); }
+  .timeline .e { padding: 9px 0; border-bottom: 1px solid var(--rule); }
+  .timeline .e.waste { color: var(--critical); }
+  .timeline .e.ok { color: var(--good); }
+  .rec { padding: 18px 20px; border-left: 3px solid var(--teal); background: var(--teal-soft); border-radius: 0 var(--r-md) var(--r-md) 0; }
+  .rec h3 { margin: 0 0 6px; font-family: var(--f-display); font-weight: 500; font-size: 18px; }
+  .rec p { margin: 0; font-size: 13.5px; color: var(--ink); line-height: 1.55; }
+  .rec .meta { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .steps { list-style: none; padding: 0; margin: 0; font-size: 13px; }
+  .steps li { display: flex; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--rule); align-items: baseline; }
+  .steps li:last-child { border-bottom: 0; }
+  .steps .n { font-family: var(--f-mono); font-size: 10.5px; color: var(--accent); min-width: 28px; }
+  .steps code { font-family: var(--f-mono); font-size: 11px; color: var(--accent); }
+  .chart-wrap { overflow-x: auto; }
+</style>
+</head>
+<body>
+
+<svg hidden xmlns="http://www.w3.org/2000/svg"><defs>
+<symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+<symbol id="i-store" viewBox="0 0 24 24"><path d="M3 9l1-5h16l1 5"/><path d="M4 9v11h16V9"/><path d="M9 14h6"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+<symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></symbol>
+<symbol id="i-moon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+<symbol id="i-sparkles" viewBox="0 0 24 24"><path d="M12 3l2 5 5 2-5 2-2 5-2-5-5-2 5-2z"/><path d="M19 14l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/></symbol>
+<symbol id="i-layers" viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></symbol>
+<symbol id="i-truck" viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></symbol>
+<symbol id="i-bolt" viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></symbol>
+<symbol id="i-thermo" viewBox="0 0 24 24"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></symbol>
+<symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 18h6M10 22h4M12 2a7 7 0 0 0-4 12.74V17h8v-2.26A7 7 0 0 0 12 2z"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+<symbol id="i-dollar" viewBox="0 0 24 24"><path d="M12 2v20M17 6H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></symbol>
+</defs></svg>
+
+<nav class="topnav">
+  <a href="index.html" class="nav-brand">
+    <svg class="nav-mark" viewBox="0 0 28 28" aria-hidden="true">
+      <rect x="2" y="12" width="4" height="12" fill="var(--teal)"/>
+      <rect x="8" y="7" width="4" height="17" fill="var(--accent)"/>
+      <rect x="14" y="10" width="4" height="14" fill="var(--teal)"/>
+      <rect x="20" y="4" width="4" height="20" fill="var(--accent)"/>
+    </svg>
+    StorePulse<em>·</em>AI
+  </a>
+  <div class="nav-links">
+    <a href="index.html" class="nav-link"><svg class="ico"><use href="#i-grid"/></svg>Demo</a>
+    <a href="regional.html" class="nav-link"><svg class="ico"><use href="#i-layers"/></svg>Regional</a>
+    <a href="store.html" class="nav-link"><svg class="ico"><use href="#i-store"/></svg>Store</a>
+    <a href="anomaly.html" class="nav-link"><svg class="ico"><use href="#i-search"/></svg>Investigate</a>
+    <a href="workforce.html" class="nav-link"><svg class="ico"><use href="#i-users"/></svg>Workforce</a>
+    <a href="inbound.html" class="nav-link"><svg class="ico"><use href="#i-truck"/></svg>Inbound</a>
+    <a href="energy.html" class="nav-link active"><svg class="ico"><use href="#i-bolt"/></svg>Energy</a>
+    <a href="briefing.html" class="nav-link"><svg class="ico"><use href="#i-sun"/></svg>Briefing</a>
+  </div>
+  <div class="nav-user">
+    <div class="who"><strong>Alex Chen</strong>Regional · Chicago</div>
+    <div class="avatar">AC</div>
+    <button class="theme-btn" id="themeBtn"><svg class="ico"><use href="#i-sun"/></svg>Theme</button>
+  </div>
+</nav>
+
+<div class="wrap">
+  <div class="page-head">
+    <div>
+      <div class="page-eyebrow">Screen 07 · Energy · Forecast-driven HVAC</div>
+      <h1 class="page-title">Heating <em>an empty store</em> · Store #042</h1>
+      <div class="page-sub">Thu Nov 5, 2026 · the building's HVAC schedule against the visitor forecast, the meter, the outdoor temperature and today's TMS trucks, hour by hour. Read-only mirror of the building-management system; nothing is written back.</div>
+    </div>
+    <div class="page-meta">
+      <span class="ai-badge"><svg class="ico"><use href="#i-sparkles"/></svg>Agent-assisted</span><br>
+      <strong>Source</strong> bms-hvac@1.0.0 · meter hourly<br>
+      <strong>Outdoor</strong> 38°F at 06:00 · heating day
+    </div>
+  </div>
+
+  <div class="problem-banner">
+    <span class="tag"><svg class="ico"><use href="#i-bulb"/></svg>Problem this solves</span>
+    <p><strong>Energy waste: the building runs on a timetable, not on the store.</strong> HVAC is usually the largest energy load in a non-food store, and its schedule was set when the store opened. It starts at 05:00, the floor is warm by 06:15, and the doors open at 09:00. It runs until 22:00, an hour after close, and heats the dock for a 07:00 truck the TMS already shows has slipped. StorePulse already forecasts when customers and trucks arrive, so this screen finds the hours the store is conditioned while empty and prices them <em>before</em> the next bill. Nothing is written to the building system, and comfort at opening is a hard limit.</p>
+  </div>
+
+  <div class="kpi-row">
+    <div class="kpi"><div class="k-label"><svg class="ico"><use href="#i-clock"/></svg>Empty-store HVAC hours</div><div class="k-value">3.0 h</div><div class="k-delta down">05:00–07:30 · 21:30–22:00</div></div>
+    <div class="kpi"><div class="k-label"><svg class="ico"><use href="#i-bolt"/></svg>Avoidable energy · today</div><div class="k-value">140 kWh</div><div class="k-delta down">120 HVAC + 20 dock heat</div></div>
+    <div class="kpi"><div class="k-label"><svg class="ico"><use href="#i-dollar"/></svg>Cost at stake · today</div><div class="k-value">$21</div><div class="k-delta flat">$0.15/kWh · before demand charges</div></div>
+    <div class="kpi"><div class="k-label"><svg class="ico"><use href="#i-thermo"/></svg>Annualized · this store</div><div class="k-value">$6.6K</div><div class="k-delta flat">≈ 44 MWh · 16 t CO₂ (HVAC only)</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2 class="panel-h"><svg class="ico"><use href="#i-bolt"/></svg>HVAC load vs visitor forecast</h2>
+      <div class="panel-sub">energy_hvac_schedule_check v1.0.0 · Thu Nov 5 · hourly</div>
+    </div>
+    <div class="chart-wrap">
+    <svg class="chart" viewBox="0 0 660 280" role="img" aria-label="Hourly HVAC kilowatts against forecast visitors. HVAC runs from 05:00 to 22:00 while visitors arrive only between 09:00 and 21:00.">
+      <!-- avoidable windows -->
+      <rect x="69" y="20" width="72.5" height="200" fill="var(--critical)" opacity="0.08"/>
+      <rect x="547.5" y="20" width="14.5" height="200" fill="var(--critical)" opacity="0.08"/>
+      <text x="105" y="13" text-anchor="middle" fill="var(--critical)" font-weight="500">Empty · 2.5 h</text>
+      <text x="555" y="13" text-anchor="middle" fill="var(--critical)" font-weight="500">0.5 h</text>
+      <line class="axis" x1="40" y1="220" x2="620" y2="220"/>
+      <g class="grid">
+        <line x1="40" y1="180" x2="620" y2="180"/>
+        <line x1="40" y1="140" x2="620" y2="140"/>
+        <line x1="40" y1="100" x2="620" y2="100"/>
+        <line x1="40" y1="60" x2="620" y2="60"/>
+      </g>
+      <!-- visitor forecast (right axis, 0-500 / h) -->
+      <path d="M 185,220 L 199.5,204 L 228.5,172 L 257.5,116 L 286.5,68 L 315.5,52 L 344.5,76 L 373.5,100 L 402.5,88 L 431.5,56 L 460.5,64 L 489.5,108 L 518.5,160 L 533,220 Z" fill="var(--teal)" opacity="0.16"/>
+      <polyline fill="none" stroke="var(--teal)" stroke-width="2.5" points="185,220 199.5,204 228.5,172 257.5,116 286.5,68 315.5,52 344.5,76 373.5,100 402.5,88 431.5,56 460.5,64 489.5,108 518.5,160 533,220"/>
+      <!-- current BMS HVAC kW (step) -->
+      <polyline fill="none" stroke="var(--critical)" stroke-width="2" points="40,220 69,220 69,28 105.25,28 105.25,84 243,84 243,100 446,100 446,84 562,84 562,220 620,220"/>
+      <!-- recommended schedule (dashed) -->
+      <polyline fill="none" stroke="var(--accent)" stroke-width="2" stroke-dasharray="5 4" points="40,222 141.5,222 141.5,28 177.75,28 177.75,84 243,84 243,100 446,100 446,84 547.5,84 547.5,222 620,222"/>
+      <!-- markers -->
+      <line x1="185" y1="40" x2="185" y2="220" stroke="var(--ink)" stroke-width="1" stroke-dasharray="2 3" opacity="0.5"/>
+      <text x="189" y="50" fill="var(--muted)">Doors open 09:00</text>
+      <line x1="533" y1="40" x2="533" y2="220" stroke="var(--ink)" stroke-width="1" stroke-dasharray="2 3" opacity="0.5"/>
+      <text x="529" y="50" text-anchor="end" fill="var(--muted)">Close 21:00</text>
+      <!-- left Y (kW) -->
+      <text x="36" y="223" text-anchor="end">0</text>
+      <text x="36" y="183" text-anchor="end">10</text>
+      <text x="36" y="143" text-anchor="end">20</text>
+      <text x="36" y="103" text-anchor="end">30</text>
+      <text x="36" y="63" text-anchor="end">40 kW</text>
+      <!-- right Y (visitors) -->
+      <text x="624" y="223" text-anchor="start">0</text>
+      <text x="624" y="143" text-anchor="start">200</text>
+      <text x="624" y="63" text-anchor="start">400/h</text>
+      <!-- X labels -->
+      <text x="40" y="238" text-anchor="middle">04</text>
+      <text x="98" y="238" text-anchor="middle">06</text>
+      <text x="156" y="238" text-anchor="middle">08</text>
+      <text x="214" y="238" text-anchor="middle">10</text>
+      <text x="272" y="238" text-anchor="middle">12</text>
+      <text x="330" y="238" text-anchor="middle">14</text>
+      <text x="388" y="238" text-anchor="middle">16</text>
+      <text x="446" y="238" text-anchor="middle">18</text>
+      <text x="504" y="238" text-anchor="middle">20</text>
+      <text x="562" y="238" text-anchor="middle">22</text>
+      <text x="620" y="238" text-anchor="middle">24</text>
+      <!-- legend -->
+      <g transform="translate(40,262)">
+        <line x1="0" y1="0" x2="18" y2="0" stroke="var(--critical)" stroke-width="2"/>
+        <text x="22" y="3" fill="var(--muted)">HVAC today (BMS schedule)</text>
+        <line x1="200" y1="0" x2="218" y2="0" stroke="var(--accent)" stroke-width="2" stroke-dasharray="5 4"/>
+        <text x="222" y="3" fill="var(--muted)">Recommended schedule</text>
+        <line x1="380" y1="0" x2="398" y2="0" stroke="var(--teal)" stroke-width="2.5"/>
+        <text x="402" y="3" fill="var(--muted)">Visitor forecast</text>
+      </g>
+    </svg>
+    </div>
+    <div class="note">Deterministic join (code, not LLM). Comfort-ready time = doors open − 15 min. Start time = comfort-ready − the warm-up this store has needed (75 min at the 90th percentile over the last 14 days). Shutdown = close + 30 min for closing tasks. Days without a visitor forecast or meter data are reported as insufficient evidence, never guessed.</div>
+  </div>
+
+  <div class="split">
+    <div class="panel">
+      <div class="panel-head">
+        <h2 class="panel-h"><svg class="ico"><use href="#i-clock"/></svg>Where the hours go · Thu Nov 5</h2>
+        <div class="panel-sub">meter kWh · $0.15/kWh</div>
+      </div>
+      <table class="datatable">
+        <thead><tr><th>Finding</th><th>Window</th><th class="num">kWh</th><th class="num">Cost</th><th>Evidence</th></tr></thead>
+        <tbody>
+          <tr><td><span class="pill crit"><span class="dot"></span>early start</span></td><td>05:00–07:30</td><td class="num">103</td><td class="num">$15.45</td><td>Warm by 06:15 on 14 of the last 14 days; first visitors 09:00</td></tr>
+          <tr><td><span class="pill warn"><span class="dot"></span>late stop</span></td><td>21:30–22:00</td><td class="num">17</td><td class="num">$2.55</td><td>Store closes 21:00; closing tasks end 21:30</td></tr>
+          <tr><td><span class="pill crit"><span class="dot"></span>dock, no truck</span></td><td>06:30–09:00</td><td class="num">20</td><td class="num">$3.00</td><td>TMS: TRK-4069 slipped Thu → Fri</td></tr>
+          <tr><td><strong>Total</strong></td><td></td><td class="num"><strong>140</strong></td><td class="num"><strong>$21.00</strong></td><td></td></tr>
+        </tbody>
+      </table>
+      <div class="note">Meter readings are validated at ingest (non-negative kWh, HVAC ≤ total, plausible outdoor temperature); failures land in quarantine with a reason code.</div>
+
+      <div class="panel-head" style="margin-top:22px;">
+        <h2 class="panel-h"><svg class="ico teal"><use href="#i-dollar"/></svg>What it saves</h2>
+        <div class="panel-sub">HVAC schedule only · illustrative</div>
+      </div>
+      <div class="eval-grid">
+        <div class="eval-cell"><div class="lbl">Per store · per day</div><div class="val">$18</div><div class="sub">120 kWh × $0.15</div></div>
+        <div class="eval-cell"><div class="lbl">Per store · per year</div><div class="val">$6.6K</div><div class="sub">≈ 44 MWh</div></div>
+        <div class="eval-cell"><div class="lbl">Chicago Metro · 5 stores</div><div class="val">$33K</div><div class="sub">per year</div></div>
+        <div class="eval-cell"><div class="lbl">40-store region</div><div class="val">$263K</div><div class="sub">per year · ~640 t CO₂</div></div>
+      </div>
+      <div class="note" style="margin-top:12px;">Assumes ~40 kW HVAC load, 3 avoidable hours a day, $0.15/kWh, 365 days, 0.37 kg CO₂/kWh. Dock-heating savings on slipped-truck days and peak-demand charges are extra. The pilot replaces these assumptions with each store's metered baseline.</div>
+    </div>
+
+    <div>
+      <div class="panel">
+        <div class="panel-head">
+          <h2 class="panel-h"><svg class="ico teal"><use href="#i-sparkles"/></svg>Energy Analyst → Advisor</h2>
+          <div class="panel-sub">12 tool calls · audited</div>
+        </div>
+        <div class="rec">
+          <h3>Align Store #042's HVAC schedule with store activity</h3>
+          <p>The BMS heats the store from 05:00, but it reaches 72°F in about 75 minutes and the first visitors arrive at 09:00. Starting at 07:30 still has the floor warm by 08:45. Stopping at 21:30 instead of 22:00 covers closing tasks. Skip dock heating on days the TMS shows no truck. About 140 kWh ($21) today and ~$6.6K a year, with comfort at opening unchanged. Facilities apply the change in the building system after review.</p>
+          <div class="meta">
+            <span class="pill ai"><span class="dot"></span>confidence · high</span>
+            <span class="pill warn"><span class="dot"></span>pending_review</span>
+            <span class="pill info"><span class="dot"></span>evidence · 3 findings</span>
+          </div>
+        </div>
+        <div class="note">Comfort guard passed: forecast 72°F by 08:45, 15 minutes before doors open. Comfort and food-safety limits are hard constraints the agent cannot trade off.</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2 class="panel-h"><svg class="ico"><use href="#i-clock"/></svg>Today, hour by hour</h2>
+          <div class="panel-sub">BMS · forecast · TMS</div>
+        </div>
+        <div class="timeline">
+          <div class="t">05:00</div><div class="e waste">HVAC starts (BMS timetable). Store empty.</div>
+          <div class="t">06:15</div><div class="e waste">Floor at 72°F. Still nobody in the store.</div>
+          <div class="t">06:30</div><div class="e waste">Dock heaters on for a 07:00 truck. TMS: truck slipped to Fri.</div>
+          <div class="t">07:30</div><div class="e ok">Recommended start: warm by 08:45.</div>
+          <div class="t">09:00</div><div class="e">Doors open. Visitors ramp up.</div>
+          <div class="t">21:00</div><div class="e">Store closes.</div>
+          <div class="t">21:30</div><div class="e ok">Recommended stop: closing tasks done.</div>
+          <div class="t">22:00</div><div class="e waste">HVAC stops (BMS timetable).</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <h2 class="panel-h"><svg class="ico"><use href="#i-shield"/></svg>How the agent got here</h2>
+          <div class="panel-sub">typed tool gateway · allowlisted</div>
+        </div>
+        <ul class="steps">
+          <li><span class="n">01</span><span><code>bms.hvac_schedule.get</code> — the store's HVAC timetable via the read-only BMS adapter</span></li>
+          <li><span class="n">02</span><span><code>energy.hvac_schedule_check</code> — deterministic hour-by-hour join of schedule, meter, visitor forecast and TMS trucks, with lineage</span></li>
+          <li><span class="n">03</span><span><code>kpi.visitors</code> — footfall context for the last 7 days</span></li>
+          <li><span class="n">04–12</span><span>Store Performance adds sales and conversion context</span></li>
+          <li><span class="n">→</span><span>Operations Advisor drafts; comfort guard; <strong>human review required</strong></span></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="foot">
+    <div>Synthetic BMS and meter data · demo scenario · nothing written to the building system</div>
+    <div>ADR · <code>docs/DECISIONS.md#adr-0015</code></div>
+  </div>
+</div>
+
+<script>
+  (function () {
+    var btn = document.getElementById('themeBtn');
+    if (!btn) return;
+    var root = document.documentElement;
+    try { var s = localStorage.getItem('sp_theme'); if (s === 'dark' || s === 'light') root.setAttribute('data-theme', s); } catch (e) {}
+    function syncIcon() {
+      var cur = root.getAttribute('data-theme');
+      var isDark = cur === 'dark' || (cur !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+      var use = btn.querySelector('use');
+      if (use) use.setAttribute('href', isDark ? '#i-sun' : '#i-moon');
+    }
+    syncIcon();
+    btn.addEventListener('click', function () {
+      var cur = root.getAttribute('data-theme');
+      var isDark = cur === 'dark' ? false : (cur === 'light' ? true : !window.matchMedia('(prefers-color-scheme: dark)').matches);
+      var next = isDark ? 'dark' : 'light';
+      root.setAttribute('data-theme', next);
+      try { localStorage.setItem('sp_theme', next); } catch (e) {}
+      syncIcon();
+    });
+  })();
+</script>
+</body>
+</html>

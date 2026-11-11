@@ -1,6 +1,7 @@
 """Load synthetic CSVs into the database via Pandera-validated ingest.
 
-Datasets: store, sales_txn, labor_hours, traffic_count, inbound_shipment (TMS feed).
+Datasets: store, sales_txn, labor_hours, traffic_count, inbound_shipment (TMS feed),
+hvac_schedule and energy_reading (BMS feed).
 Also seeds metric_catalog (all v1 metrics) and labor_rate (from MCP server).
 
 Usage:
@@ -20,7 +21,8 @@ from packages.analytics.kpi_service import METRICS
 from services.labor_rate_mcp.server import seed_rates
 
 
-DATASETS = ["store", "sales_txn", "labor_hours", "traffic_count", "inbound_shipment"]
+DATASETS = ["store", "sales_txn", "labor_hours", "traffic_count", "inbound_shipment",
+            "hvac_schedule", "energy_reading"]
 TIMESTAMP_COLUMNS = ("ts_utc", "planned_arrival_utc", "eta_utc")
 
 
@@ -49,7 +51,8 @@ def _reset_tables(engine) -> None:
         for table in ["approval_event", "recommendation", "tool_call", "ai_run",
                       "anomaly", "forecast", "forecast_run", "audit_event",
                       "quarantine", "sales_txn", "labor_hours", "traffic_count",
-                      "inbound_shipment", "labor_rate", "metric_catalog", "store"]:
+                      "inbound_shipment", "hvac_schedule", "energy_reading",
+                      "labor_rate", "metric_catalog", "store"]:
             conn.execute(text(f"DELETE FROM {table}"))
 
 
@@ -73,7 +76,7 @@ def main() -> None:
                 df[col] = pd.to_datetime(df[col], utc=True)
         result = validate_and_load(engine, df, dataset)
         print(
-            f"{dataset:14s}  loaded={result['loaded']:>7,}  "
+            f"{dataset:16s}  loaded={result['loaded']:>7,}  "
             f"quarantined={result['quarantined']:>5}  reason={result['reason']}"
         )
 
